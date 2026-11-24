@@ -14,7 +14,7 @@ import { HttpError } from "../api";
 import { CASE_118, CASE_124, CONVERSATION, MANAGES_109, MANAGES_118 } from "./sample";
 import { Steps, type Step } from "./steps";
 import { hold, offline, replace } from "./fakeApi";
-import { AS_READER_123, VERSIONS, VERSIONS_STOPPED_FAILED } from "./sample";
+import { AS_READER_123, CONVERSATIONS_DOWN, VERSIONS, VERSIONS_STOPPED_FAILED } from "./sample";
 import { AS_READER, EMPTY_OFFICE, KEY_TEST_DUE, NO_RUN, RUN_DONE, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
 import type { Lang } from "../i18n";
 
@@ -69,7 +69,9 @@ export const PREVIEWS: Preview[] = [
   { id: "g09-offline", board: "G09", lang: "nl", title: "Server niet bereikbaar, met een gesprek open",
     // the page loads, then the server goes away: the next health check (every 10 seconds) shows the bar
     setup: () => offline("/health", 3000), render: app(...HUURKOOP, { wait: 11_000 }) },
-  { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => { hold("/v1/chat"); hold(/^\/v1\/conversations\/[^/]+\/questions$/); },
+  { id: "g09-conversations-down", board: "G09", lang: "nl", title: "Gesprekken niet bewaard: er wordt niets gevraagd tot ze terug zijn",
+    setup: () => replace(CONVERSATIONS_DOWN), render: app() },
+  { id: "g10-busy", board: "G10", lang: "nl", title: "Bezig met een antwoord", setup: () => hold(/^\/v1\/conversations\/[^/]+\/questions$/),
     render: app({ type: "Wat is een huurkoopformule, in grote lijnen?", into: "Stel een vraag" }, { key: "Enter" }) },
   { id: "g11-source", board: "G11", lang: "nl", title: "Bronpaneel open",
     render: app({ click: "Akte van verkoop: nazicht clausules" }, { click: "Bron 1: Compromis_Schipperskaai.pdf, pagina 7" }) },

@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Turn } from "../types";
-import { conversationHistory } from "./history";
 import { statusText } from "./status";
 
 function fakeStorage() {
@@ -41,11 +40,6 @@ describe("Fast or Thorough (docs/design/chat-ui.md §5)", () => {
   it("says how long the model thought", async () => {
     const { thoughtTime } = await import("./thinking");
     expect([thoughtTime(0.2), thoughtTime(14.4), thoughtTime(60), thoughtTime(65)]).toEqual(["1 s", "14 s", "1 min", "1 min 5 s"]);
-  });
-
-  it("never sends the reasoning back to the model with the next question", () => {
-    const history = conversationHistory([question, answer({ thinking: true, reasoning: "The deed says …", thoughtSeconds: 9 })]);
-    expect(history).toEqual([{ role: "user", content: "What is the price?" }, { role: "assistant", content: "EUR 1 [1]." }]);
   });
 
   it("says the model is thinking while it does", () => {

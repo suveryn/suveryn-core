@@ -6,7 +6,6 @@
  * out from these (``shownOf``): never kept beside them.
  */
 import type { AssistantTurn, Turn, UserTurn } from "../types";
-import { askedAgain } from "./ask";
 
 export type Conversation = { turns: Turn[]; leaf: string | null };
 export const NO_CONVERSATION: Conversation = { turns: [], leaf: null };
@@ -37,6 +36,15 @@ function newestLeaf(turns: Turn[], from: string | null): string | null {
 /** A conversation read back: every turn, the newest answer of each question shown, and what followed it. */
 export const opened = (turns: Turn[]): Conversation => ({ turns, leaf: newestLeaf(turns, null) });
 
+/** The conversation read again from the server (after a document was deleted, which the server cleaned out of every
+ *  turn): its turns as stored, still showing the branch that was shown, found by the number the server gave its last
+ *  turn; the newest branch if that has none yet. */
+export function readAgain(was: Conversation, read: Conversation): Conversation {
+  const seq = was.turns.find((t) => t.id === was.leaf)?.seq;
+  const leaf = seq === undefined ? undefined : read.turns.find((t) => t.seq === seq)?.id;
+  return leaf ? { ...read, leaf } : read;
+}
+
 /** A question asked after the turn shown last, and its answer being written, shown. */
 export function asked(c: Conversation, question: UserTurn, answer: AssistantTurn): Conversation {
   return { turns: [...c.turns, { ...question, follows: c.leaf }, { ...answer, follows: question.id }], leaf: answer.id };
@@ -58,11 +66,10 @@ export function without(c: Conversation, ids: Set<string>): Conversation {
 
 /** Regenerate on the answer shown at ``i``. A question the server stored is asked once more as it was asked
  *  (``asking``, its number) and answered under itself (``question``): one more version of its answers. One it never
- *  stored (refused), or without saved conversations: the failed pair goes and the question is asked anew, as a new
- *  question, never a version the server doesn't keep (review of the one list). */
-export function regenerating(c: Conversation, shown: Turn[], i: number, savedConversations: boolean):
-  { conversation: Conversation; asking?: number; question?: UserTurn } {
-  const question = shown[i - 1] as UserTurn, asking = askedAgain(question, savedConversations);
+ *  stored (refused): the failed pair goes and the question is asked anew, as a new question, never a version the
+ *  server doesn't keep (review of the one list). */
+export function regenerating(c: Conversation, shown: Turn[], i: number): { conversation: Conversation; asking?: number; question?: UserTurn } {
+  const question = shown[i - 1] as UserTurn, asking = question.seq;
   return asking === undefined ? { conversation: without(c, new Set([question.id, shown[i].id])) } : { conversation: c, asking, question };
 }
 

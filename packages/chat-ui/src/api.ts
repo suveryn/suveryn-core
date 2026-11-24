@@ -39,7 +39,6 @@ export type SupportSpan = Kept<gateway.SupportSpan, "how">;
  *  thought past its allowance and was answered again without thinking; ``narrowed_to``: the question named one
  *  document, and only that one was read. */
 export type ChatResponse = gateway.ChatResponse;
-export type WireMessage = gateway.ChatMessage;
 
 /** An upload's state. */
 export type JobStatus = gateway.Upload["status"];
@@ -52,7 +51,6 @@ export type Warning = gateway.ReadingWarning;
  *  its numbers, worded here; `noticed`: the file carries sūveryn's own export mark, so it is no source until someone
  *  says so. */
 export type Job = gateway.Upload;
-const ANSWER_TOKENS = 3000;
 
 /** A .zip upload: a job per document, and the files left out, each with why as a code of the registry. */
 export type ArchiveUpload = gateway.ArchiveUpload;
@@ -217,34 +215,6 @@ export function uploadDocument(file: File, onProgress?: (fraction: number) => vo
   });
 }
 
-/**
- * Streams an answer. Calls `onDelta` with each piece of text, then resolves with the complete
- * answer (including citations). Rejects if the stream ends in an `error` event or breaks off;
- * any partial text must then be discarded (gateway contract). Without saved conversations (their store down): the
- * history goes with the question, and nothing is stored (`askInConversation` otherwise).
- */
-export async function streamChat(
-  messages: WireMessage[],
-  documentIds: string[],
-  onDelta: (text: string) => void,
-  signal?: AbortSignal,
-  model?: string | null,          // an id from listModels(); null or undefined: the default model
-  onStatus?: (status: StreamStatus) => void,
-  caseId?: string | null,         // the case the documents are in; null or undefined: the personal space
-  onSources?: (citations: Citation[]) => void,  // a grounded answer's passages, before its first word
-  thinking?: { on: boolean; onText: (text: string) => void },  // *Thorough*: think first; the reasoning as it comes
-): Promise<ChatResponse> {
-  // An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence
-  // at about 5,000 (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments). A question
-  // in a saved conversation has the same limit, set by the gateway (routes/conversations.py, ANSWER_TOKENS).
-  // The generated call reads an answer whole; a stream is read as it comes, here. What is asked, and where, are the
-  // generated code's.
-  const asked: gateway.ChatRequest = { messages, document_ids: documentIds, stream: true, max_tokens: ANSWER_TOKENS, ...(model ? { model } : {}),
-                                       ...(caseId ? { case_id: caseId } : {}), ...(thinking?.on ? { thinking: true } : {}) };
-  const r = await fetch(gateway.getAskQuestionUrl(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(asked), signal });
-  return readAnswer(r, { onDelta, onStatus, onSources, onThinking: thinking?.onText });
-}
-
 /** What a streamed answer says as it comes. */
 export type AnswerHandlers = {
   onDelta: (text: string) => void;
@@ -258,7 +228,9 @@ export type AnswerHandlers = {
 /**
  * A question asked in a saved conversation (suveryn-tracker#251): the server stores it, reads the model what it stored
  * of the conversation on the way to it (the answer it follows, `after`), and stores the answer as it is written,
- * however it ends. `again`: Regenerate, the question (its `seq`) once more as it was asked. Streamed as `streamChat`.
+ * however it ends. `again`: Regenerate, the question (its `seq`) once more as it was asked. Calls `onDelta` with each
+ * piece of text, then resolves with the whole answer; rejects if the stream ends in an `error` event or breaks off (any
+ * partial text is then discarded: the gateway's contract).
  */
 export async function askInConversation(conversationId: string, question: gateway.QuestionIn, handlers: AnswerHandlers,
                                         signal?: AbortSignal): Promise<ChatResponse> {

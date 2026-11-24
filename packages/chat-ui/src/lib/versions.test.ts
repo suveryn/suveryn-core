@@ -3,11 +3,11 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
 import { canRegenerate } from "./ask";
-import { answeredAgain, asked, NO_CONVERSATION, opened, regenerating, shownOf, switchedTo, versionsOf, without } from "./versions";
+import { answeredAgain, asked, NO_CONVERSATION, opened, readAgain, regenerating, shownOf, switchedTo, versionsOf, without } from "./versions";
 
-const q = (seq: number, follows: string | null): UserTurn => ({ id: `q${seq}`, seq, follows, byServer: true, role: "user", text: `q${seq}`, attachments: [] });
+const q = (seq: number, follows: string | null): UserTurn => ({ id: `q${seq}`, seq, follows, role: "user", text: `q${seq}`, attachments: [] });
 const a = (seq: number, follows: string, status: AssistantTurn["status"] = "done"): AssistantTurn =>
-  ({ id: `a${seq}`, seq, follows, byServer: true, role: "assistant", text: `a${seq}`, citations: [], status, grounded: false });
+  ({ id: `a${seq}`, seq, follows, role: "assistant", text: `a${seq}`, citations: [], status, grounded: false });
 const writing = (id: string): AssistantTurn => ({ id, role: "assistant", text: "", citations: [], status: "streaming", grounded: false });
 // q1 answered twice (Regenerate): a2 with its follow-up q4/a5, then a3 with none
 const all: Turn[] = [q(1, null), a(2, "q1"), a(3, "q1"), q(4, "a2"), a(5, "q4")];
@@ -52,20 +52,28 @@ describe("a conversation the page keeps", () => {
 
   it("Regenerate: a stored question gets another version; a refused one has its failed pair taken out, asked anew", () => {
     const stored = opened(all);
-    expect(regenerating(stored, shownOf(stored), 1, true)).toEqual({ conversation: stored, asking: 1, question: all[0] });
+    expect(regenerating(stored, shownOf(stored), 1)).toEqual({ conversation: stored, asking: 1, question: all[0] });
     // review of the one list: hung under the refused question, it showed 2 of 2 the server never kept, and a
     // follow-up from the refusal was filed under the other answer
-    const refused = { ...q(3, "a2"), seq: undefined, byServer: undefined }, failed = { ...a(4, "q3", "error"), seq: undefined };
+    const refused = { ...q(3, "a2"), seq: undefined }, failed = { ...a(4, "q3", "error"), seq: undefined };
     const c = asked(opened([q(1, null), a(2, "q1")]), refused, failed);
     const shown = shownOf(c);
-    expect(canRegenerate(shown, 3, { busy: false, disabled: false, savedConversations: true })).toBe(true);
-    const r = regenerating(c, shown, 3, true);
+    expect(canRegenerate(shown, 3, { busy: false, disabled: false })).toBe(true);
+    const r = regenerating(c, shown, 3);
     expect([r.asking, r.question]).toEqual([undefined, undefined]);  // nothing stored to ask again: a new question
     expect(ids(shownOf(r.conversation))).toEqual(["q1", "a2"]);
     const anew = asked(r.conversation, { ...refused, id: "q5" }, writing("w"));
     expect(ids(shownOf(anew))).toEqual(["q1", "a2", "q5", "w"]);
     expect(versionsOf(anew, shownOf(anew), 3)).toBeNull();
-    // without saved conversations, the same: the failed answer goes, nothing is kept beside it
-    expect(regenerating(stored, shownOf(stored), 1, false).asking).toBeUndefined();
+  });
+
+  it("read again after a document was deleted: as the server now has it, still on the branch shown", () => {
+    // shown here: q1, a2 and its follow-up, asked on this page (its own ids), numbered by the server
+    const here = switchedTo(opened([q(1, null), a(2, "q1"), a(3, "q1"), { ...q(4, "a2"), id: "mine" }, { ...a(5, "mine"), id: "mine-a" }]), all[1]);
+    expect(ids(shownOf(here))).toEqual(["q1", "a2", "mine", "mine-a"]);
+    const read = opened(all);  // as stored: the newest branch would be q1, a3
+    expect(ids(shownOf(readAgain(here, read)))).toEqual(["q1", "a2", "q4", "a5"]);  // the same branch, the server's turns
+    // the last turn shown not numbered yet (stopped before it was stored): the server's newest branch
+    expect(readAgain(asked(here, { ...q(9, "x"), seq: undefined, id: "n" }, writing("w")), read)).toBe(read);
   });
 });

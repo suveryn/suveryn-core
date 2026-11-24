@@ -382,10 +382,12 @@ bounce in turn; they stand still under `prefers-reduced-motion`.
 it follows; the server stores the question and the answer as it is written, however it ends, and the model reads what
 the server stored. The screen saves nothing itself: the answer's stream says the numbers the server gave the question
 and, once stored, the answer (event `stored`), which the next question, *Regenerate* and *Save to case* name; a
-refused question gets none. *Regenerate* and *Save to case* need a turn the server stored; on a question the screen
-saved whole before, *Regenerate* asks it as a new question. The server keeps a
-conversation as a tree (each turn names the one it follows), as ChatGPT and Claude do. Without saved conversations
-(their store down) the question goes to `POST /v1/chat` with the history, and nothing is kept.
+refused question gets none, and *Regenerate* on it asks it anew. The server keeps a conversation as a tree (each turn
+names the one it follows), as ChatGPT and Claude do. With the conversation store down nothing is asked: the question
+box says conversations can't be saved right now, as the sidebar does, until it is back. After a document is deleted,
+the open conversation is read again from the server, which took the document's passages and name out of every turn
+(one clean-up, the server's); while an answer is written, once it ends. If it can't be read, a new conversation starts
+and the page says why: it is never shown with the passages.
 
 **An answer's versions** (board 81). *Regenerate*, last in every finished, stopped or failed answer's actions, asks
 the same question again; the new answer is shown at once and the earlier one is kept, with what followed it. An answer
@@ -405,7 +407,7 @@ client keeps its tree; the branch on screen is worked out from these (`lib/versi
 
 - A stopped answer keeps what was written, with "Stopped. Incomplete and not checked." Its markers still open their passages, because a grounded answer's passages are sent before its first word (SSE `sources`). Checks run only on a finished answer, and Word export is offered for finished answers only. A stopped answer is saved, but not sent to the model as history.
 - Stopping stops the model: the gateway watches the connection from the start and closes its own to llama-server when it closes. Tokens used until then are still recorded. Esc stops wherever the focus is, except in an open menu or dialog, which it closes first; the focus then goes to the question box.
-- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, with "Answer interrupted: the connection dropped." under its last word. Any other failure shows nothing of the attempt. Both offer *Regenerate*: the same question, with the same documents; in a kept conversation it makes a new version, and without saved conversations it takes the failed answer's place.
+- A cut-off answer (the connection dropped, or the stream ended without its last event) keeps what arrived, unchecked, with "Answer interrupted: the connection dropped." under its last word. Any other failure shows nothing of the attempt. Both offer *Regenerate*: the same question, with the same documents, as a new version (a question the server refused, never stored, is asked anew).
 - An answer that stops at its length limit says so; a cut-off answer says it is incomplete. The server logs such a stop by counts only.
 - When the database or the sign-in service is down, the gateway's 503s carry a code (`system.database_unavailable`, `auth.unavailable`; [messages.md](messages.md)) so every message can say which part is down. The sign-in page says the database can't be reached, what to do if it stays so, and offers *Try again*. A sign-in service that answers with a server error doesn't sign people out; their session waits. Deleting a document while the saved conversations can't be read is refused in the app with a sentence, and on the server.
 - The question being typed is kept for the browser tab (`lib/draft.ts`, sessionStorage) until it is sent, emptied or the person signs out, so it survives signing in again after a restart.
@@ -434,7 +436,7 @@ Clicking a citation opens a 440 px panel on the right. The panel holds:
 - The source panel replaces a card under the answer. It is not modal; the focus moves into it when a citation opens it and back when it closes; Esc closes it from inside it. Below 768 px it is a modal drawer from the right. *Open document at p. 3* opens the file as uploaded in a new tab, a PDF at the cited page (`#page=3`); a Word or Markdown file has no page, so it reads *Open document*. It sits next to *Copy passage* and replaces the passage's download (board G11, 6 November 2026). A playbook fact's passage whose document was deleted since offers the passage's download instead.
 - The verdict in words: for a marker, whether its sentence's names, dates and figures are in the passage; for an item of the sources line, whether everything the answer takes from that source is; "not checked" for a stopped answer.
 - Above every sourced answer a quiet line names the documents it rests on ("Based on akte-verkoop.pdf"): it is the one cue that shows an answer mixing documents.
-- **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`, `withoutDocument`).
+- **The passage in its context** (G11, P02): with each citation the server sends `context`, the passage with up to two sentences (400 characters) of the chunks before and after it on the same page, and where the passage starts and ends in it (`suveryn_rag.pipeline.passage_context`). The source panel dims that text around the passage; without it (a short page, a scan with no text around it, a spreadsheet's cells) it shows the passage alone. The page never asks for a document's text. A playbook's fact keeps its passages' context too. Deleting a document takes the context out of saved conversations with the passage (`conversations.redact`).
 
 **Attachments** (artboard 13) are cards inside the question box (above it on a narrow screen), one shape for every state, with × at the
 top right to remove:

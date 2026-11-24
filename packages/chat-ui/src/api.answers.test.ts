@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import answers from "../../api-gateway/tests/answers_answers.json";
 import auth from "../../api-gateway/tests/auth_answers.json";
-import { ANSWER_EVENTS, getMe, HttpError, signOut, streamChat, StreamFailure, type Citation, type StreamStatus } from "./api";
+import { ANSWER_EVENTS, askInConversation, getMe, HttpError, signOut, StreamFailure, type AnswerHandlers, type Citation, type StreamStatus } from "./api";
 import { messageText } from "./lib/messages";
 import { t } from "./i18n";
 import { eventStream, gatewayAnswers } from "./test/gateway";
@@ -13,7 +13,6 @@ import { eventStream, gatewayAnswers } from "./test/gateway";
 const failure = async (call: Promise<unknown>) => call.then(() => { throw new Error("it didn't fail"); }, (e) => e);
 const asked = (method: string, path: string, body: unknown = null) => ({ method, path, body, cache: "default" });
 const stream = eventStream;
-const QUESTION = [{ role: "user" as const, content: "Wat is de koopprijs?" }];
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -42,30 +41,34 @@ describe("who is signed in", () => {
 });
 
 describe("an answer as a stream", () => {
+  // read by the one reader of every answer (``readAnswer``), on the gateway's real events: the same in a conversation
+  // (asked there, numbered by its ``stored`` events: api.conversations.test.ts) as through /v1/chat, where they were kept
+  const ID = "00000000-0000-4000-8000-0000000000a1";
+  const QUESTION = { text: "Wat is de koopprijs?", document_ids: ["d1"] };
+  const ask = (h: Partial<AnswerHandlers> = {}) => askInConversation(ID, QUESTION, { onDelta: () => {}, ...h });
+
   it("is asked at the generated address, and read as it comes: what the server does, the passages, the words, the whole answer", async () => {
     const sent = gatewayAnswers(stream(answers.stream.body));
     const [steps, words, sources]: [StreamStatus["step"][], string[], Citation[][]] = [[], [], []];
-    const answer = await streamChat(QUESTION, ["d1"], (text) => words.push(text), undefined, "Qwen", (status) => steps.push(status.step), "c1",
-      (citations) => sources.push(citations));
+    const answer = await ask({ onDelta: (text) => words.push(text), onStatus: (status) => steps.push(status.step),
+                               onSources: (citations) => sources.push(citations) });
     const done = answers.stream.body.at(-1)!.data as typeof answers.grounded.body;
     expect(answer).toEqual(done);
     expect([words.join(""), steps[0], sources.length, sources[0][0].source?.page]).toEqual([done.answer, "searching", 1, 2]);
-    expect(sent).toEqual([asked("POST", "/v1/chat", { messages: QUESTION, document_ids: ["d1"], stream: true, max_tokens: 3000, model: "Qwen", case_id: "c1" })]);
+    expect(sent).toEqual([asked("POST", `/v1/conversations/${ID}/questions`, QUESTION)]);
   });
 
   it("of a model that thinks first gives its reasoning apart, as it comes, never in the answer's words", async () => {
-    const sent = gatewayAnswers(stream(answers.stream_thorough.body));
+    gatewayAnswers(stream(answers.stream_thorough.body));
     const [thought, words]: [string[], string[]] = [[], []];
-    const answer = await streamChat(QUESTION, ["d1"], (text) => words.push(text), undefined, null, undefined, null, undefined,
-      { on: true, onText: (text) => thought.push(text) });
+    const answer = await ask({ onDelta: (text) => words.push(text), onThinking: (text) => thought.push(text) });
     expect([thought.join(""), answer.reasoning, words.join("").includes("Article 2 gives"), answer.answer]).toEqual([
       "Article 2 gives the price.", "Article 2 gives the price.", false, words.join("")]);
-    expect(sent[0].body).toEqual({ messages: QUESTION, document_ids: ["d1"], stream: true, max_tokens: 3000, thinking: true });
   });
 
   it("that can't be completed fails with why, as the code's words, and keeps the message itself", async () => {
     gatewayAnswers(stream(answers.stream_failed.body));
-    const e = await failure(streamChat(QUESTION, ["d1"], () => {}));
+    const e = await failure(ask());
     expect(e).toBeInstanceOf(StreamFailure);
     expect([e.failure, e.message]).toEqual([{ kind: "unavailable", code: "document.unavailable", params: {} },
       messageText({ kind: "unavailable", code: "document.unavailable", params: {} }, t())]);
@@ -73,14 +76,14 @@ describe("an answer as a stream", () => {
 
   it("that breaks off before its end is a failure, never half an answer", async () => {
     gatewayAnswers(stream(answers.stream.body.slice(0, -1)));
-    expect((await failure(streamChat(QUESTION, [], () => {}))).message).toBe(t().streamCutOff);
+    expect((await failure(ask())).message).toBe(t().streamCutOff);
   });
 
   it("that is refused before it starts is thrown with its status, its code and the code's words", async () => {
     for (const [answer, status, code] of [[answers.no_such_document, 404, "answer.document_not_found"], [answers.no_such_model, 422, "model.not_found"],
       [answers.too_many, 429, "request.too_many"]] as const) {
       gatewayAnswers(answer);
-      const e = await failure(streamChat(QUESTION, ["d1"], () => {}));
+      const e = await failure(ask());
       expect([e instanceof HttpError, e.status, e.problem.code, e.message]).toEqual([true, status, code, messageText(e.problem, t())]);
     }
   });

@@ -73,14 +73,14 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
   };
   if (turn.role === "user") {
     const about = ids("about").map(named);
-    return { id, seq: turn.seq, byServer: true, role: "user", text: turn.text ?? "",
+    return { id, seq: turn.seq, role: "user", text: turn.text ?? "",
              attachments: ids("attached").map((d) => ({ key: d, status: "ready" as const, ...named(d) })),
              ...(about.length ? { about } : {}) };
   }
   const done = { answer: turn.text ?? "", ...(turn as object) } as unknown as ChatResponse;
   const asked: Stored = question ?? { role: "user" };
   const answer: AssistantTurn = {
-    id, seq: turn.seq, byServer: true, role: "assistant", citations: [], grounded: ids("document_ids", asked).length > 0,
+    id, seq: turn.seq, role: "assistant", citations: [], grounded: ids("document_ids", asked).length > 0,
     ...answerPatch(done, { thought: "", partial: ids("about", asked).length > 0 && turn.complete === false }),
     ...(asked.thinking ? { thinking: true } : {}),
   } as AssistantTurn;
@@ -143,23 +143,6 @@ export function usesDocument(turns: Turn[], documentId: string): boolean {
   return turns.some((t) => (t.role === "user"
     ? t.attachments.some((a) => a.documentId === documentId) || (t.about ?? []).some((c) => c.documentId === documentId)
     : t.citations.some((c) => c.source?.document_id === documentId)));
-}
-
-/**
- * The conversation without a deleted document's passages and file names, exactly as the server cleans
- * the saved copy (conversations.py ``redact``, suveryn-tracker#12): text and location go, the page and
- * the answer stay, and the citation or attachment is marked ``removed``.
- */
-export function withoutDocument(turns: Turn[], documentId: string): Turn[] {
-  return turns.map((t) => {
-    if (t.role === "user") {
-      return { ...t, attachments: t.attachments.map((a) => (a.documentId === documentId && !a.removed
-        ? { ...a, filename: "", removed: true } : a)),
-        ...(t.about ? { about: t.about.map((c) => (c.documentId === documentId && !c.removed ? { ...c, filename: "", removed: true } : c)) } : {}) };
-    }
-    return { ...t, citations: t.citations.map((c) => (c.source?.document_id === documentId && !c.removed
-      ? { text: "", source: { document_id: documentId, page: c.source.page, location: null }, removed: true } : c)) };
-  });
 }
 
 

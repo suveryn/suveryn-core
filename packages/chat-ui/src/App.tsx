@@ -4,18 +4,18 @@
  * - Nothing is shown before sign-in (App → SignIn); once signed in, Chat mounts.
  * - Server state (health, stored documents, upload jobs) is polled; uploads are tracked per
  *   attachment until their job is ready.
- * - Conversations are saved on the server, per user (suveryn-tracker#5): after each answer the
- *   whole conversation is saved, and the sidebar lists earlier ones to open again. Nothing is
+ * - Conversations are kept on the server, per user (suveryn-tracker#5, #251): it stores each
+ *   question and answer as it answers, and the sidebar lists earlier ones to open again. Nothing is
  *   written to browser storage. Signing out asks whether to keep the history (the default) or
- *   delete it. Without a database on the server, the conversation lives only in memory.
+ *   delete it. Without the server's conversation store, nothing is asked until it is back.
  * - Cases (suveryn-tracker#10): the sidebar opens a case or the personal space; documents,
  *   uploads, conversations and questions are then that case's (the gateway checks the right),
  *   and switching starts a new chat there. The personal space is the user's own, as before cases.
  * - The sidebar (docs/design/chat-ui.md) lists conversations, cases and documents across every
  *   place at once; opening one of them goes to its place first. Pinned cases are the user's own
  *   choice (per user, on the server). The sidebar collapses to a rail, remembered in this browser.
- * - Each question is sent with the completed earlier turns (lib/history.ts) and every document
- *   used so far in the conversation that still exists.
+ * - Each question goes to the conversation the server keeps, with the answer it follows and every document
+ *   used so far in it that still exists; the server reads the model the earlier turns it stored (#251).
  * - Answers stream in as deltas; on an error event the partial text is discarded (the gateway's
  *   contract) and the turn shows an error instead.
  */
@@ -26,9 +26,9 @@ import {
 import icon from "./brand/suveryn-icon.svg";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, streamChat, askInConversation, uploadDocument,
+  cancelJob, deleteDocument, documentConversations, getHealth, isArchiveUpload, listDocuments, askInConversation, uploadDocument,
   getMe, ME_CHANGED, StreamFailure, listModels, onSignedOut, signIn, signOut, type Health, type Job, type Me, type ModelInfo, type StoredDocument,
-  type WireMessage, type AnswerHandlers, type Citation, type ConversationSummary, listConversations, getConversation, deleteConversation,
+  type AnswerHandlers, type Citation, type ConversationSummary, listConversations, getConversation, deleteConversation,
   deleteAllConversations, getMyUsage, listCases, listCasesOverview, deleteCase, getCase, closeCase, type Case, type CaseOverview, type Member,
   listMembers, departedNames, shareConversation, confirmAsSource, saveTurnAsDocument, documentContent, listAllConversations, listAllDocuments, pinCase, pinConversation, casePlaybooks, startRun, type PlaybookInfo, type Run, type RunSummary, activeRuns as activeRuns_, caseRuns, listAdminPlaybooks, getBackups,
   HttpError,
@@ -64,10 +64,9 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { answerStored, conversationTitle, listedTitle, newConversationId, withoutDocument } from "./lib/conversations";
-import { answeredAgain, asked as asked_, NO_CONVERSATION, regenerating, shownOf, switchedTo, versionsOf, without,
+import { answerStored, conversationTitle, listedTitle, newConversationId, savedConversation } from "./lib/conversations";
+import { answeredAgain, asked as asked_, NO_CONVERSATION, readAgain, regenerating, shownOf, switchedTo, versionsOf, without,
          type Conversation } from "./lib/versions";
-import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
 import { afterDeletion } from "./lib/questionDocuments";
 import { answerPatch, canRegenerate, conversationDocuments, failureKind, questionFor, toFollow, withStored } from "./lib/ask";
@@ -204,6 +203,8 @@ function Chat({ me }: { me: Me }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState(newConversationId);
+  const conversationIdNow = useRef(conversationId);  // the open one, for what comes back after a wait
+  conversationIdNow.current = conversationId;
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [askingSignOut, setAskingSignOut] = useState(false);
   const [view, setView] = useState<"chat" | "usage" | "admin" | SideView>("chat");
@@ -469,7 +470,9 @@ function Chat({ me }: { me: Me }) {
     health.status !== "ok" ? m.modelUnavailable :
     readOnly ? m.sharedReadOnly({ name: names.get(current!.owner!) || current!.owner! }) :
     closed ? m.caseIsClosed :
-    currentCase && role === "reader" ? m.readerCantAsk : null;
+    currentCase && role === "reader" ? m.readerCantAsk :
+    // the server keeps every turn as it answers (#251): with its conversation store down, nothing is asked
+    !historyReady ? m.historyFailed : null;
 
   // ---------------------------------------------------------------- actions
   const attachFiles = async (files: File[]) => {
@@ -596,7 +599,6 @@ function Chat({ me }: { me: Me }) {
     setAboutGone(false);
     const reply: AssistantTurn = { id: nextId(), role: "assistant", text: "", citations: [], status: "streaming", grounded: docIds.size > 0,
                                    ...(thinking ? { thinking: true } : {}) };
-    const history: WireMessage[] = conversationHistory(question ? turns.slice(0, turns.indexOf(question)) : turns);
 
     if (!again) setPending((p) => p.filter(staysInComposer));
     setConversation((c) => (question ? answeredAgain(c, question.id, reply) : asked_(c, user, reply)));
@@ -618,7 +620,7 @@ function Chat({ me }: { me: Me }) {
     let now: StoredDocument[] | null = null;
     let next: ReturnType<typeof afterDeletion> = null;
     // what a new question follows: the answer shown last that the server numbered (#251)
-    const after = historyReady && asking === undefined ? await answerFollowed(turns) : {};
+    const after = asking === undefined ? await answerFollowed(turns) : {};
     let numbered: { question: number; answer: number | null } | null = null;  // what the server said it stored
     const knownAnswers = new Set(conversation.turns.filter((t) => t.role === "assistant").map((t) => t.seq));  // the versions before this one
     const said: AnswerHandlers = {
@@ -641,17 +643,13 @@ function Chat({ me }: { me: Me }) {
       },
     };
     try {
-      // With saved conversations, the server keeps the conversation and stores each turn as it answers
-      // (suveryn-tracker#251): only the question goes, with the answer it follows. Without them (their store down),
-      // the history goes with it and nothing is kept.
-      const done = historyReady
-        ? await askInConversation(conversationId, asking !== undefined ? { again: asking } : {
-            text, document_ids: [...docIds], about: asked.map((c) => c.documentId),
-            attached: attachments.filter((a) => a.documentId && isReady(a)).map((a) => a.documentId!),
-            ...(caseId ? { case_id: caseId } : {}), ...(chosenModel ? { model: chosenModel } : {}), ...(thinking ? { thinking: true } : {}),
-            ...after }, said, abort.current.signal)
-        : await streamChat([...history, { role: "user", content: text }], [...docIds], said.onDelta, abort.current.signal, chosenModel,
-                           said.onStatus, caseId, said.onSources, { on: thinking, onText: said.onThinking! });
+      // The server keeps the conversation and stores each turn as it answers (suveryn-tracker#251): only the question
+      // goes, with the answer it follows. With the store down, nothing is asked (``disabledReason``).
+      const done = await askInConversation(conversationId, asking !== undefined ? { again: asking } : {
+        text, document_ids: [...docIds], about: asked.map((c) => c.documentId),
+        attached: attachments.filter((a) => a.documentId && isReady(a)).map((a) => a.documentId!),
+        ...(caseId ? { case_id: caseId } : {}), ...(chosenModel ? { model: chosenModel } : {}), ...(thinking ? { thinking: true } : {}),
+        ...after }, said, abort.current.signal);
       update(answerPatch(done, { thought, thinkSeconds, partial: asked.length > 0 && whole === false }));
     } catch (e) {
       const kind = failureKind(e, { stopped: stopped.current, streamed, inCase: !!caseId, retried: !!fresh, cutOffMessage: m.streamCutOff });
@@ -680,28 +678,28 @@ function Chat({ me }: { me: Me }) {
       abort.current = null;
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
-    if (historyReady) {
-      refreshConversations();  // a new conversation is listed, a known one moves up
-      // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
-      // found by its question, so it counts among the question's versions (board 81)
-      const asked = numbered as { question: number; answer: number | null } | null;
-      const found = asked && asked.answer === null ? await answerStored(readConversation, asked.question, knownAnswers) : null;
-      // shown or switched away from meanwhile: it is one of the turns known all the same
-      if (found) changeTurns((ts) => withStored(ts, user.id, reply.id, { question: asked!.question, answer: found.answer }));
-    }
-    if (retryWith) {
-      setConversation((c) => without(c, new Set(question ? [reply.id] : [user.id, reply.id])));
-      await send(text, attachments, asked, retryWith, undefined, question);
+    refreshConversations();  // a new conversation is listed, a known one moves up
+    // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
+    // found by its question, so it counts among the question's versions (board 81)
+    const stored = numbered as { question: number; answer: number | null } | null;
+    const found = stored && stored.answer === null ? await answerStored(readConversation, stored.question, knownAnswers) : null;
+    // shown or switched away from meanwhile: it is one of the turns known all the same
+    if (found) changeTurns((ts) => withStored(ts, user.id, reply.id, { question: stored!.question, answer: found.answer }));
+    // a document deleted while this answer was written: read again now that it is stored (and numbered), so it stays
+    if (deletedHere.current.size > 0) readOpenAgain();
+    if (retryWith) {  // a new question only (``asking`` undefined): the pair goes, asked once more with the documents now
+      setConversation((c) => without(c, new Set([user.id, reply.id])));
+      await send(text, attachments, asked, retryWith);
     }
   };
 
   // Regenerate (board 81): the question of the answer at ``i`` again, as it was asked; the answer is kept as a version,
-  // and what followed it leaves the screen (one arrow away). Without saved conversations: the last failed one, as before.
-  const regenerable = (i: number) => !locked && canRegenerate(turns, i, { busy, disabled: !!disabledReason, savedConversations: historyReady });
+  // and what followed it leaves the screen (one arrow away).
+  const regenerable = (i: number) => !locked && canRegenerate(turns, i, { busy, disabled: !!disabledReason });
   const regenerate = (i: number) => {
     // another version of a stored question's answers, or a refused one asked anew (lib/versions.ts)
-    const question = turns[i - 1] as UserTurn, again = regenerating(conversation, turns, i, historyReady);
-    setConversation((c) => regenerating(c, turns, i, historyReady).conversation);  // from the latest turns known
+    const question = turns[i - 1] as UserTurn, again = regenerating(conversation, turns, i);
+    setConversation((c) => regenerating(c, turns, i).conversation);  // from the latest turns known
     send(question.text, question.attachments, question.about ?? [], undefined, again.asking, again.question);
   };
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
@@ -779,7 +777,7 @@ function Chat({ me }: { me: Me }) {
     changeTurns((ts) => ts.map((t) => (t.id === id ? ({ ...t, ...patch } as AssistantTurn) : t)));
   const saveControls = (t: AssistantTurn): SaveToCase | null => {
     const state = saveState(t, { inCase: !!caseId, contributes, closed, readOnly, savedHere, documents });
-    if (!currentCase || !caseId || !state || !t.byServer || t.seq === undefined) return null;  // only an answer the server stored
+    if (!currentCase || !caseId || !state || t.seq === undefined) return null;  // only an answer the server stored
     return {
       caseRef: currentCase.reference, ...state,
       onSave: async () => {
@@ -881,6 +879,7 @@ function Chat({ me }: { me: Me }) {
     setOpenRunId(null);
     abort.current?.abort();
     setConversation(NO_CONVERSATION);
+    deletedHere.current.clear();
     setPending([]);
     setProblem(null);
     setConversationId(newConversationId());
@@ -1024,6 +1023,7 @@ function Chat({ me }: { me: Me }) {
       setConversationId(id);
       setSavedHere(new Set());
       setConversation(opened.conversation);
+      deletedHere.current.clear();
       setAbout(opened.about);
       setThinking(opened.thinking);
       setAboutGone(false);
@@ -1114,13 +1114,33 @@ function Chat({ me }: { me: Me }) {
     setView("chat");
     remove(d, target);
   };
+  // The open conversation read again from the server, which took the documents deleted here out of every turn: still
+  // on the branch shown. Not readable now: never shown with their passages, and said why.
+  const deletedHere = useRef(new Set<string>());
+  const readOpenAgain = () => {
+    const id = conversationId, gone = new Set(deletedHere.current);
+    deletedHere.current.clear();
+    getConversation(id).then((c) => {
+      const read = savedConversation(c.turns, id, (doc) => (gone.has(doc) ? undefined : documentName(doc)));
+      setConversation((was) => (id === conversationIdNow.current ? readAgain(was, read) : was));
+    }).catch((e) => {
+      if (id !== conversationIdNow.current) return;
+      newChat();
+      setProblem(m.openFailed({ why: (e as Error).message }));
+    });
+  };
   const deleteNow = async (d: StoredDocument, conversations: "clean" | "delete", using: string[], where: string | null = caseId) => {
     await deleteDocument(d.id, conversations, where);
     setPending((p) => p.filter((a) => a.documentId !== d.id));
-    // every version known, not only the one shown: the server cleaned them all
+    // every version known, not only the one shown: the server cleaned them all, so the conversation is read again as
+    // it now is, the document's passages and name gone (one clean-up, the server's: #251)
     const open = afterDelete({ documentId: d.id, turns: conversation.turns, conversationId, conversations, deleted: using });
     if (open === "new") newChat();
-    else if (open === "clean") changeTurns((ts) => withoutDocument(ts, d.id));
+    else if (open === "clean") {
+      deletedHere.current.add(d.id);
+      // an answer being written: read again once it is (review of step 4a), or it would be lost from the screen
+      if (!abort.current) readOpenAgain();
+    }
     setDeleting(null);
     refreshDocuments();
     refreshConversations();

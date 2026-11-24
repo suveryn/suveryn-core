@@ -1,5 +1,5 @@
 {
- "_about": "A saved conversation and a saved answer as the chat UI keeps them, and a document of theirs deleted: what must be gone from them after the clean-up, and what stays. Fictional. Read by both sides' tests (api-gateway/tests/test_conversations.py; chat-ui/src/lib/cleaning.test.ts), so the gateway's clean-up and the chat UI's own are tested on the same shapes (suveryn-tracker#250).",
+ "_about": "A saved conversation and a saved answer as the chat UI keeps them, and a document of theirs deleted: what must be gone from them after the clean-up, and what stays. Fictional. Read by the gateway's tests (test_conversations.py): since suveryn-tracker#251 the gateway's clean-up is the only one; the file goes with the whole save in its step 4b.",
  "deleted": "11111111-1111-4111-8111-111111111111",
  "turns": [
   {"id": "u1", "role": "user", "text": "Wat is de koopprijs?",

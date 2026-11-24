@@ -147,8 +147,8 @@ async def move_conversation(conversation_id: str, body: MoveIn, request: Request
 
 
 # An answer's length limit, in tokens: about 10,000 characters. 1,500 cut long answers off mid-sentence at about 5,000
-# (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments); the chat UI asked for this
-# much with every question before the server kept the conversation (its api.ts, streamChat).
+# (VM check of adccf00: the shareholders' agreement's transfer rules, the FSMA comments), as the chat UI asked for
+# before the server kept the conversation.
 ANSWER_TOKENS = 3000
 
 # The conversations an answer is being written in, in this process: a second question waits for it (409).

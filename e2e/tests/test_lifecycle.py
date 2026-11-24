@@ -41,6 +41,12 @@ def test_postgresql_restarts_and_nobody_is_signed_out(page, deed, restored):
     upload(page, deed)
     stop(restored, "postgres")
     wait_until(lambda: health_part("history") == "failed", 30, what="/health noticing the database")
+    # nothing is asked while the conversations can't be kept (suveryn-tracker#251): with a question typed, the
+    # question box says why and doesn't send, once the page's own health check (every 10 seconds) has seen it
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("Wat is de koopprijs?")
+    expect(page.get_by_role("status").filter(has_text="Conversations can't be saved right now.")).not_to_have_count(0, timeout=20_000)
+    expect(page.get_by_role("button", name="Send message")).to_be_disabled()
+    page.get_by_role("textbox", name=re.compile("^Your question")).fill("")
     # deleting a document while the conversations can't be read is refused with a sentence, nothing deleted
     r = page.request.get("/v1/documents")
     assert r.status == 503, r.status

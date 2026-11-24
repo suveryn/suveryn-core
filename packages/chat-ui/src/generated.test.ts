@@ -17,7 +17,7 @@ const NOT_CALLED: Record<string, string> = {
   deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
   createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
-  askQuestion: "without saved conversations the screens ask for an answer as a stream, read as it comes (api.ts, streamChat): at the generated address, with the generated body and events",
+  askQuestion: "the screens ask only in a conversation the server keeps (askInConversation); an answer without one is the gateway's for other callers, the screens don't ask when the store is down (suveryn-tracker#251)",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
   askInConversation: "a question in a saved conversation is answered as a stream, read as it comes (api.ts, askInConversation): at the generated address, with the generated body and events",
   saveConversation: "the server stores each turn as it answers: no screen saves a conversation whole any more; the route goes in a later step (suveryn-tracker#251)",

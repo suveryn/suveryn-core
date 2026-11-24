@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { streamChat, type Citation } from "../api";
-import type { AssistantTurn, Turn } from "../types";
-import { savedConversation } from "./conversations";
-import { shownOf } from "./versions";
-/** The branch a conversation read back shows. */
-const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
-import { conversationHistory } from "./history";
+import { askInConversation, type Citation } from "../api";
 
 const citation: Citation = { text: "The price is EUR 300,000.", source: { document_id: "d1", page: 2, location: "p. 2" } };
 
@@ -34,20 +28,14 @@ describe("stopping an answer (docs/design/chat-ui.md §5)", () => {
     const abort = new AbortController();
     let text = "";
     let sources: Citation[] = [];
-    const answer = streamChat([{ role: "user", content: "What is the price?" }], ["d1"], (d) => {
-      text += d;
-      if (text.endsWith("[1]")) abort.abort();  // the person presses Stop
-    }, abort.signal, null, undefined, null, (c) => { sources = c; });
+    const answer = askInConversation("00000000-0000-4000-8000-0000000000a1", { text: "What is the price?", document_ids: ["d1"] }, {
+      onDelta: (d) => {
+        text += d;
+        if (text.endsWith("[1]")) abort.abort();  // the person presses Stop
+      },
+      onSources: (c) => { sources = c; } }, abort.signal);
     await expect(answer).rejects.toThrow(/abort/i);
     expect(text).toBe("The price is [1]");
     expect(sources).toEqual([citation]);  // the marker still points somewhere
-  });
-
-  it("keeps a stopped answer when saved, and leaves it out of what the model is sent next", () => {
-    const stopped: AssistantTurn = { id: "a1", role: "assistant", text: "The price is [1]", citations: [citation], status: "stopped", grounded: true };
-    const turns: Turn[] = [{ id: "u1", role: "user", text: "What is the price?", attachments: [] }, stopped];
-    expect(fromSaved(turns)).toEqual([{ ...turns[0], follows: null }, { ...stopped, follows: "u1" }]);  // each naming what it follows
-    // cut off mid-sentence: the next question stands on its own
-    expect(conversationHistory(turns)).toEqual([]);
   });
 });
