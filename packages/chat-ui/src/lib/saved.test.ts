@@ -3,7 +3,8 @@ import JSZip from "jszip";
 import type { Citation } from "../api";
 import { setLang, t } from "../i18n";
 import type { AssistantTurn } from "../types";
-import { answerExport, answerFileName, savedAnswer, savedTurn, savedWord, searchText } from "./saved";
+import documents from "../../../api-gateway/tests/documents_answers.json";
+import { answerExport, answerFileName, savedAnswer, savedTurn, savedWord, searchText, type SavedAnswer } from "./saved";
 
 const passage: Citation = { text: "The price is EUR 300,000.", source: { document_id: "d1", page: 2, location: "p. 2" } };
 const turn: AssistantTurn = {
@@ -45,5 +46,16 @@ describe("an answer saved to its case (docs/design/chat-ui.md §5)", () => {
       expect(body).toContain(expected);
       expect(footers.join("")).toMatch(/sūveryn-ref A-[0-9a-f]{8}/);
     }
+  });
+
+  it("builds the Word file of an answer the server copied from the one it stored, as of one it saved itself (#251)", async () => {
+    setLang("en", false);
+    const copied = documents.content_from_turn.body.content as unknown as SavedAnswer;
+    expect(Object.keys(copied).sort()).toEqual(Object.keys(savedAnswer({ ...turn, supportSpans: [] }, "q", new Map(), null)).sort());
+    const zip = await JSZip.loadAsync(await (await savedWord(copied, t(), "en")).arrayBuffer());
+    const body = await zip.file("word/document.xml")!.async("string");
+    const footers = await Promise.all(Object.keys(zip.files).filter((f) => /word\/footer\d*\.xml/.test(f)).map((f) => zip.file(f)!.async("string")));
+    expect(body).toContain(copied.question);
+    expect(footers.join("")).toMatch(/sūveryn-ref A-[0-9a-f]{8}/);
   });
 });

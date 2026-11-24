@@ -457,3 +457,107 @@ def test_a_question_shows_only_documents_the_caller_may_see(store):
             assert r.status_code == 200
             events(r)
     assert store.place(uuid.UUID(cid))[0] == ALICE and stored(store, cid)[0][2]["attached"] == [DEED]
+
+
+# Saving an answer the server stored to its case (step 2).
+
+def test_a_saved_answers_file_name_and_search_text_are_the_chat_uis():
+    """As the chat UI's ``answerFileName`` and ``searchText`` make them for an answer it saves itself."""
+    from suveryn_api_gateway.conversations import file_name, search_text
+
+    assert file_name("Wat is: de prijs?/..  ") == "Wat is de prijs.docx"
+    assert file_name("???") == "answer.docx" and file_name("a" * 90) == "a" * 80 + ".docx"
+    assert search_text("Wat is de prijs?", "De prijs is € 1 [1]. Ook [2] , zo [12];") == "Wat is de prijs?\n\nDe prijs is € 1. Ook, zo;"
+
+
+def test_a_saved_answer_keeps_every_check_the_stored_answer_has():
+    """What is copied into the saved answer's content is what the stored answer says beside its words: a check added
+    to the one and not the other would be lost from the Word file."""
+    from suveryn_api_gateway.conversations import AnsweredTurn, SavedAnswer
+
+    checks = set(AnsweredTurn.model_fields) - {"kind", "parent", "outcome", "failure", "finish_reason", "reasoning", "thought_seconds",
+                                                 "thinking_cut", "narrowed_to", "complete", "asked_again"}
+    assert checks <= set(SavedAnswer.model_fields), checks - set(SavedAnswer.model_fields)
+    # in the shape the chat UI saves and reads (its SavedAnswer, lib/saved.ts)
+    assert {f.alias or name for name, f in SavedAnswer.model_fields.items()} == {
+        "question", "answer", "answeredOn", "model", "citations", "calculations", "unverifiedFigures", "citationIssues",
+        "supportSpans", "instructionLikeSources", "filenames", "turnId", "caseRef"}
+
+
+@needs_db
+def test_an_answer_saved_to_its_case_is_the_one_the_server_stored(store):
+    """The browser names the answer; the server copies it with its question, so what is saved is what the model
+    wrote. Only an answer written out; the conversation's owner only."""
+    from test_cases import NEW, FakeCases
+    from test_documents import FakeDocuments
+
+    docs, kc = FakeDocuments(owner=ALICE), FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=store, cases=FakeCases())) as c:
+        alice = as_user(kc, ALICE)
+        case = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+
+        def asked() -> tuple[str, int, int]:
+            cid = str(uuid.uuid4())
+            with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat is de koopprijs?", "case_id": case},
+                          headers=alice) as r:
+                events(r)
+            question, answer = (t.seq for t in store.turns_of(uuid.UUID(cid)))
+            return cid, question, answer
+        cid, question, answer = asked()
+        r = c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice)
+        assert r.status_code == 201 and r.json()["filename"] == "Wat is de koopprijs.docx"
+        _, origin, content = docs.contents[r.json()["id"]]
+        assert (origin, content["question"], content["answer"], content["turnId"], content["caseRef"]) == (
+            "answer", "Wat is de koopprijs?", "De koopprijs is EUR 412.500,00 [1].", f"{cid}/{answer}", NEW["reference"])
+        assert docs.stored_provenance == {"conversation": cid, "message": f"{cid}/{answer}", "turn": answer}
+        assert c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice).status_code == 200  # once
+        assert c.post(f"/v1/conversations/{cid}/turns/{question}/document", headers=alice).status_code == 404
+        assert c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=as_user(kc, BOB)).status_code == 404
+        stopped, _, answer = asked()
+        store._execute("UPDATE turns SET meta = meta || '{\"outcome\": \"stopped\"}' WHERE conversation_id = %s AND seq = %s",
+                       (uuid.UUID(stopped), answer))
+        r = c.post(f"/v1/conversations/{stopped}/turns/{answer}/document", headers=alice)
+        assert r.status_code == 409 and r.json()["code"] == "request.conflict"  # a stopped answer isn't saved
+
+
+@needs_db
+def test_an_answer_saved_to_its_case_keeps_its_passages_checks_and_a_deleted_source_as_removed(store):
+    """What the copy is about (review of step 2): the passages and file names of its sources, its checks, and a
+    source deleted since the answer was written, kept out and marked removed as the conversation shows it."""
+    from suveryn_rag.store import Scope
+    from test_cases import NEW, FakeCases
+    from test_documents import DOC as DEED, FakeDocuments
+
+    docs, kc = FakeDocuments(owner=ALICE), FakeKeycloak()
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="Het kost EUR 412.500,00 [1], de kosten EUR 7.250,00 [1]."))
+    with TestClient(create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=store, cases=FakeCases())) as c:
+        alice = as_user(kc, ALICE)
+        case = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+        docs.docs[DEED] = (Scope.case(uuid.UUID(case)), "uploaded")  # the deed is in the case
+
+        def saved(cid: str) -> dict:
+            with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat kost het?", "case_id": case,
+                                                                              "document_ids": [DEED]}, headers=alice) as r:
+                events(r)
+            answer = store.turns_of(uuid.UUID(cid))[1]
+            r = c.post(f"/v1/conversations/{cid}/turns/{answer.seq}/document", headers=alice)
+            assert r.status_code == 201, r.text
+            return answer.meta, docs.contents[r.json()["id"]][2]
+
+        stored, content = saved(str(uuid.uuid4()))
+        assert content["citations"] == stored["citations"] and content["citations"][0]["text"] == "De koopprijs bedraagt EUR 412.500,00."
+        assert content["filenames"] == {DEED: "akte.pdf"}
+        assert content["unverifiedFigures"] == stored["unverified_figures"] and stored["unverified_figures"]  # 7.250,00: in no passage
+        assert (content["calculations"], content["citationIssues"]) == (stored["calculations"], stored["citation_issues"])
+        cid = str(uuid.uuid4())
+        with c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "Wat kost het?", "case_id": case,
+                                                                          "document_ids": [DEED]}, headers=alice) as r:
+            events(r)
+        store.remove_document(ALICE, uuid.UUID(DEED), False, uuid.UUID(case))  # deleted since the answer was written
+        answer = store.turns_of(uuid.UUID(cid))[1].seq
+        r = c.post(f"/v1/conversations/{cid}/turns/{answer}/document", headers=alice)
+        content = docs.contents[r.json()["id"]][2]
+        assert content["citations"][0]["removed"] is True and content["citations"][0]["text"] == "" and content["filenames"] == {}

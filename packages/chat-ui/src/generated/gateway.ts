@@ -1075,6 +1075,7 @@ export interface SaveAnswerIn {
   /**
      * @minLength 1
      * @maxLength 100
+     * @pattern ^[^/]+$
      */
   message_id: string;
   /**
@@ -2410,7 +2411,8 @@ export const DocumentContentOrigin = {
 } as const;
 
 /**
- * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``).
+ * What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the
+ * same shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251).
  */
 export interface DocumentContent {
   content: DocumentContentContent;
@@ -7796,6 +7798,92 @@ export const setConversationShared = async (conversationId: string,
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }, options?.headers),
     body: JSON.stringify(shareIn)
+  }
+);}
+
+
+
+export type saveTurnAsDocumentResponse200 = {
+  data: SavedAnswerDocument
+  status: 200
+}
+
+export type saveTurnAsDocumentResponse201 = {
+  data: SavedAnswerDocument
+  status: 201
+}
+
+export type saveTurnAsDocumentResponse401 = {
+  data: ProblemDetails
+  status: 401
+}
+
+export type saveTurnAsDocumentResponse403 = {
+  data: ProblemDetails
+  status: 403
+}
+
+export type saveTurnAsDocumentResponse404 = {
+  data: ProblemDetails
+  status: 404
+}
+
+export type saveTurnAsDocumentResponse409 = {
+  data: ProblemDetails
+  status: 409
+}
+
+export type saveTurnAsDocumentResponse422 = {
+  data: ProblemDetails
+  status: 422
+}
+
+export type saveTurnAsDocumentResponse500 = {
+  data: ProblemDetails
+  status: 500
+}
+
+export type saveTurnAsDocumentResponse503 = {
+  data: ProblemDetails
+  status: 503
+}
+
+export type saveTurnAsDocumentResponseSuccess = (saveTurnAsDocumentResponse200 | saveTurnAsDocumentResponse201) & {
+  headers: Headers;
+};
+export type saveTurnAsDocumentResponseError = (saveTurnAsDocumentResponse401 | saveTurnAsDocumentResponse403 | saveTurnAsDocumentResponse404 | saveTurnAsDocumentResponse409 | saveTurnAsDocumentResponse422 | saveTurnAsDocumentResponse500 | saveTurnAsDocumentResponse503) & {
+  headers: Headers;
+};
+
+export type saveTurnAsDocumentResponse = (saveTurnAsDocumentResponseSuccess | saveTurnAsDocumentResponseError)
+
+export const getSaveTurnAsDocumentUrl = (conversationId: string,
+    seq: number,) => {
+
+
+
+
+  return `/v1/conversations/${conversationId}/turns/${seq}/document`
+}
+
+/**
+ * Save an answer the server stored (suveryn-tracker#251, step 2) to its conversation's case, as a document with
+ * origin ``answer`` (docs/design/chat-ui.md §5): the browser names the answer, and the server copies it as it was
+ * written, with its question, passages, checks and its sources' file names. A contributor's right in an open case;
+ * the conversation's owner only (404 otherwise, or for no such answer); 409 for an answer that wasn't written out,
+ * or a conversation that isn't in a case. Saving it again gives the document already saved. Logged as
+ * ``answer_saved``.
+ * @summary Save Turn As Document
+ */
+export const saveTurnAsDocument = async (conversationId: string,
+    seq: number, options?: Parameters<typeof gatewayFetch>[1]): Promise<saveTurnAsDocumentResponse> => {
+
+  return gatewayFetch<saveTurnAsDocumentResponse>(getSaveTurnAsDocumentUrl(conversationId,seq),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

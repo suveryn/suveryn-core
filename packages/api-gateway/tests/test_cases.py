@@ -2017,6 +2017,28 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     rebuilt = check("GET", content, 200, of(content, made["id"], f"?case={cid}"), "content", tidy=tidy, headers=carla).json()
     assert (rebuilt["origin"], rebuilt["content"]["question"]) == ("answer", "What is the price?")
 
+    # an answer the server stored, saved by naming it (suveryn-tracker#251, step 2): the server copies it
+    turn = "/v1/conversations/{conversation_id}/turns/{seq}/document"
+    ASKED, MINE = "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"
+    at_turn = lambda conversation, seq: turn.replace("{conversation_id}", conversation).replace("{seq}", str(seq))  # noqa: E731
+    c.post(f"/v1/conversations/{ASKED}/questions", json={"text": "What is the price?", "case_id": cid}, headers=bob)
+    c.post(f"/v1/conversations/{MINE}/questions", json={"text": "What is the price?"}, headers=alice)  # her personal space
+    assert check("POST", turn, 401, at_turn(ASKED, 2)).json()["code"] == "auth.signed_out"
+    assert check("POST", turn, 422, at_turn("not-an-id", 2), headers=bob).json()["code"] == "request.invalid"
+    assert "errors" in check("POST", turn, 422, at_turn(ASKED, "x"), headers=bob).json()
+    assert check("POST", turn, 404, at_turn(ASKED, 2), headers=alice).json()["code"] == "request.not_found"  # Bob's
+    assert check("POST", turn, 404, at_turn(ASKED, 1), "no_such_answer", headers=bob).json()["code"] == "request.not_found"  # a question
+    assert check("POST", turn, 409, at_turn(MINE, 2), "not_in_a_case", headers=alice).json()["code"] == "request.conflict"
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "reader"}, headers=alice)
+    assert check("POST", turn, 403, at_turn(ASKED, 2), headers=bob).json()["code"] == "case.not_allowed"
+    c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice)
+    copied = check("POST", turn, 201, at_turn(ASKED, 2), "saved_from_turn", tidy=tidy, headers=bob).json()
+    assert copied["created"] is True and copied["filename"] == "What is the price.docx"
+    assert check("POST", turn, 200, at_turn(ASKED, 2), headers=bob).json() == {**copied, "created": False}
+    stored = check("GET", content, 200, of(content, copied["id"], f"?case={cid}"), "content_from_turn",
+                   tidy=same_every_run(moments=("answeredOn",)), headers=carla).json()["content"]
+    assert (stored["question"], stored["answer"], stored["turnId"]) == ("What is the price?", "De koopprijs is EUR 412.500,00 [1].", f"{ASKED}/2")
+
     # deleted, with the conversations that cite it cleaned; accepted when that cleaning is still to be done
     assert "errors" in check("DELETE", one, 422, of(one, DOC, "?conversations=keep"), headers=alice).json()
     check("DELETE", one, 204, of(one, made["id"], f"?case={cid}"), headers=bob)  # his own saved answer: undone
