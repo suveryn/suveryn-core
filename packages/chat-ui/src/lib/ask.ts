@@ -102,10 +102,9 @@ export function canRegenerate(turns: Turn[], i: number, o: { busy: boolean; disa
 /** The numbers the server gave a question and, once stored, its answer (event ``stored``, suveryn-tracker#251), on the
  *  turns this page shows for them: what the next question follows, what Regenerate asks again, what Save to case names.
  *  Only turns the server stored this way get them: a refused question never does. */
-export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null },
-                           after?: number | null): Turn[] {
-  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true, ...(after !== undefined ? { parent: after } : {}) }
-    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true, parent: stored.question } : t) as Turn);
+export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null }): Turn[] {
+  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true }
+    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true } : t) as Turn);
 }
 
 /** Regenerate: the stored question (its number) the server asks once more as it was asked; none for a question the

@@ -43,7 +43,7 @@ describe("stopping an answer (docs/design/chat-ui.md §5)", () => {
   it("keeps a stopped answer when saved, and leaves it out of what the model is sent next", () => {
     const stopped: AssistantTurn = { id: "a1", role: "assistant", text: "The price is [1]", citations: [citation], status: "stopped", grounded: true };
     const turns: Turn[] = [{ id: "u1", role: "user", text: "What is the price?", attachments: [] }, stopped];
-    expect(fromSaved(turns)).toEqual(turns);
+    expect(fromSaved(turns)).toEqual([{ ...turns[0], follows: null }, { ...stopped, follows: "u1" }]);  // each naming what it follows
     // cut off mid-sentence: the next question stands on its own
     expect(conversationHistory(turns)).toEqual([]);
   });

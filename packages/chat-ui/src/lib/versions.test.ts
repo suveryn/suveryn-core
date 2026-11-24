@@ -1,38 +1,51 @@
-/** An answer's versions (board 81, suveryn-tracker#251): the tree the server keeps, one branch shown. */
+/** A conversation as the page keeps it (board 81, suveryn-tracker#251): one list of every turn known, each naming the
+ *  turn it follows, and the last one shown; the branch on screen is worked out from these. */
 import { describe, expect, it } from "vitest";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
-import { branchFrom, switchedTo, versionsOf, withShown } from "./versions";
+import { answeredAgain, asked, NO_CONVERSATION, opened, shownOf, switchedTo, versionsOf, without } from "./versions";
 
-const q = (seq: number, parent: number | null): UserTurn => ({ id: `q${seq}`, seq, parent, byServer: true, role: "user", text: `q${seq}`, attachments: [] });
-const a = (seq: number, parent: number, status: AssistantTurn["status"] = "done"): AssistantTurn =>
-  ({ id: `a${seq}`, seq, parent, byServer: true, role: "assistant", text: `a${seq}`, citations: [], status, grounded: false });
+const q = (seq: number, follows: string | null): UserTurn => ({ id: `q${seq}`, seq, follows, byServer: true, role: "user", text: `q${seq}`, attachments: [] });
+const a = (seq: number, follows: string, status: AssistantTurn["status"] = "done"): AssistantTurn =>
+  ({ id: `a${seq}`, seq, follows, byServer: true, role: "assistant", text: `a${seq}`, citations: [], status, grounded: false });
+const writing = (id: string): AssistantTurn => ({ id, role: "assistant", text: "", citations: [], status: "streaming", grounded: false });
 // q1 answered twice (Regenerate): a2 with its follow-up q4/a5, then a3 with none
-const tree: Turn[] = [q(1, null), a(2, 1), a(3, 1), q(4, 2), a(5, 4)];
+const all: Turn[] = [q(1, null), a(2, "q1"), a(3, "q1"), q(4, "a2"), a(5, "q4")];
 const ids = (turns: Turn[]) => turns.map((t) => t.id);
 
-describe("an answer's versions", () => {
-  it("are its question's answers, oldest first; one being written is the newest", () => {
-    const shown = [q(1, null), a(3, 1)];
-    expect(versionsOf(tree, shown, 1)).toMatchObject({ n: 2, total: 2 });
-    expect(versionsOf(tree, [q(1, null), a(2, 1), q(4, 2), a(5, 4)], 1)).toMatchObject({ n: 1, total: 2 });
-    expect(versionsOf(tree, [q(1, null), a(2, 1), q(4, 2), a(5, 4)], 3)).toBeNull();  // one version: no arrows
-    const writing = { id: "new", role: "assistant", text: "", citations: [], status: "streaming", grounded: false } as Turn;
-    expect(versionsOf(tree, [q(1, null), writing], 1)).toMatchObject({ n: 3, total: 3 });
-    expect(versionsOf(tree, [{ ...q(1, null), seq: undefined }, writing], 1)).toBeNull();  // its question isn't the server's
+describe("a conversation the page keeps", () => {
+  it("opened, shows the newest answer of each question and what followed it", () => {
+    expect(ids(shownOf(opened(all)))).toEqual(["q1", "a3"]);
+    expect(ids(shownOf(opened([q(1, null), a(2, "q1"), q(3, "a2"), a(4, "q3")])))).toEqual(["q1", "a2", "q3", "a4"]);
+    expect(shownOf(NO_CONVERSATION)).toEqual([]);
   });
 
-  it("switching changes everything below the answer to that version's branch, nothing above", () => {
-    const shown = [q(1, null), a(3, 1)];
-    const first = switchedTo(tree, shown, 1, tree[1]);
-    expect(ids(first)).toEqual(["q1", "a2", "q4", "a5"]);   // back to the first answer, with what followed it
-    expect(ids(switchedTo(tree, first, 1, tree[2]))).toEqual(["q1", "a3"]);  // the second has no follow-up: it ends there
-    expect(ids(branchFrom(tree, tree[3]))).toEqual(["q4", "a5"]);
+  it("an answer's versions are its question's answers, oldest first; one being written is the newest", () => {
+    const c = opened(all);
+    expect(versionsOf(c, shownOf(c), 1)).toMatchObject({ n: 2, total: 2 });
+    const first = switchedTo(c, all[1]);
+    expect(versionsOf(first, shownOf(first), 1)).toMatchObject({ n: 1, total: 2 });
+    expect(versionsOf(first, shownOf(first), 3)).toBeNull();  // one version: no arrows
+    const again = answeredAgain(c, "q1", writing("new"));
+    expect(ids(shownOf(again))).toEqual(["q1", "new"]);
+    expect(versionsOf(again, shownOf(again), 1)).toMatchObject({ n: 3, total: 3 });
+    const local = asked(NO_CONVERSATION, { ...q(1, null), seq: undefined }, writing("w"));
+    expect(versionsOf(local, shownOf(local), 1)).toBeNull();  // its question isn't the server's
   });
 
-  it("the turns known take in what the server numbered since, and stay the same list when nothing is new", () => {
-    expect(withShown(tree, [tree[0], tree[2]])).toBe(tree);  // the branch shown is made of what is known
-    const asked = withShown(tree, [q(1, null), a(3, 1), q(6, 3), { ...a(7, 6), status: "stopped" }, { ...q(9, 7), seq: undefined }]);
-    expect(asked.map((t) => t.seq)).toEqual([1, 2, 3, 4, 5, 6, 7]);  // a refused question isn't the server's
-    expect(withShown(asked, [{ ...q(6, 3), parent: undefined }]).find((t) => t.seq === 6)?.parent).toBe(3);  // keeps what it followed
+  it("switching changes everything below the answer to that version's newest branch, nothing above", () => {
+    const first = switchedTo(opened(all), all[1]);
+    expect(ids(shownOf(first))).toEqual(["q1", "a2", "q4", "a5"]);  // back to the first answer, with what followed it
+    expect(ids(shownOf(switchedTo(first, all[2])))).toEqual(["q1", "a3"]);  // the second has no follow-up
+    expect(first.turns).toBe(all);  // the turns known don't change
+  });
+
+  it("a question asked follows the turn shown last; taken out, what is shown ends at what it followed", () => {
+    const c = asked(switchedTo(opened(all), all[1]), { ...q(6, null), seq: undefined }, writing("w"));
+    expect(ids(shownOf(c))).toEqual(["q1", "a2", "q4", "a5", "q6", "w"]);
+    expect(c.turns.find((t) => t.id === "q6")?.follows).toBe("a5");
+    expect(ids(shownOf(without(c, new Set(["q6", "w"]))))).toEqual(["q1", "a2", "q4", "a5"]);
+    // asked again, the question stays: only the new answer goes
+    const again = answeredAgain(opened(all), "q1", writing("w"));
+    expect(ids(shownOf(without(again, new Set(["w"]))))).toEqual(["q1"]);
   });
 });

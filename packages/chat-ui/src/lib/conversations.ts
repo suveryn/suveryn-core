@@ -7,6 +7,7 @@ import type { ChatResponse } from "../api";
 import type { AssistantTurn, Turn } from "../types";
 import { answerPatch } from "./ask";
 import { messageText, type Message } from "./messages";
+import { opened, shownOf } from "./versions";
 
 /** A random UUID (v4). Not crypto.randomUUID: that needs a secure context, and an appliance may be reached over plain http. */
 
@@ -32,21 +33,6 @@ export function conversationTitle(turns: Turn[]): string {
  *  stored as it answered (``kind``: question or answer, ``parent``: the turn it follows; the gateway's ``AskedTurn``,
  *  ``AnsweredTurn``), with its number (``seq``). */
 type Stored = Record<string, unknown> & { role: string; text?: string; seq?: number };
-
-/** The turns the screen shows of a conversation the server keeps as a tree (as Claude and ChatGPT keep one): from its
- *  first turn, at each the newest that follows it. A turn without a ``parent`` (the chat UI's own saves) follows the
- *  one before it. */
-export function shownBranch<T extends Stored>(turns: T[]): T[] {
-  const key = (i: number): number | string => turns[i].seq ?? `#${i}`;  // a turn the API took without a number: its place
-  const after = new Map<number | string | null, number[]>();
-  turns.forEach((turn, i) => {
-    const parent = "parent" in turn ? (turn.parent as number | null) ?? null : i > 0 ? key(i - 1) : null;
-    after.set(parent, [...(after.get(parent) ?? []), i]);
-  });
-  const shown: T[] = [];
-  for (let next = after.get(null)?.at(-1); next !== undefined && shown.length < turns.length; next = after.get(key(next))?.at(-1)) shown.push(turns[next]);
-  return shown;
-}
 
 /** The newest stored answer to the question numbered ``question``: the one it follows (``parent``), or, for turns the
  *  chat UI saved whole, the turn after it. ``known``: answers this page already had, none of which is the one sought
@@ -110,31 +96,35 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
 }
 
 /** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows
- *  (``parent``, the server's; a turn the chat UI saved whole has none, and no versions: step 4 of #251 removes them). An answer saved mid-stream (it
+ *  (``follows``). An answer saved mid-stream (it
  *  shouldn't be) shows as interrupted. The screen shows one branch of them (``fromSaved``), and switches between an
  *  answer's versions within them (lib/versions.ts). */
 export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
   const raw = stored as unknown as Stored[];
   const bySeq = new Map(raw.map((s) => [s.seq, s]));
-  return raw.map((saved, i) => {
-    const parent = "parent" in saved ? (saved.parent as number | null) ?? null : undefined;
+  const read = raw.map((saved, i) => {
     const read = saved.kind === "question" || saved.kind === "answer"
       ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
       : saved as unknown as Turn;
     // A turn saved without the UI's own fields (through the API) opens all the same:
     // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
-    const turn = { ...read, id: read.id || `saved-${i}`, text: read.text ?? "", ...(parent !== undefined ? { parent } : {}) } as Turn;
+    const turn = { ...read, id: read.id || `saved-${i}`, text: read.text ?? "" } as Turn;
     if (turn.role === "user") return { ...turn, attachments: Array.isArray(turn.attachments) ? turn.attachments : [] };
     const answer = { ...turn, citations: Array.isArray(turn.citations) ? turn.citations : [], status: turn.status ?? "done",
                      grounded: turn.grounded ?? false };
     return answer.status === "streaming" ? { ...answer, text: "", status: "error", error: t().answerInterrupted } : answer;
   });
+  // what each follows, by id: the server's ``parent``; a turn the chat UI saved whole follows the one before it, so
+  // has no versions (step 4 of #251 removes them)
+  const idOf = new Map(raw.map((s, i) => [s.seq, read[i].id]));
+  return read.map((turn, i) => ({ ...turn, follows: "parent" in raw[i] ? idOf.get(raw[i].parent as number) ?? null
+    : i > 0 ? read[i - 1].id : null }) as Turn);
 }
 
-/** Turns read back from the server: the branch shown (``shownBranch``: the newest answer of each question, and what
- *  followed it), each as the screen keeps it. */
+/** Turns read back from the server: the branch shown (the newest answer of each question, and what followed it), each
+ *  as the screen keeps it (lib/versions.ts). */
 export function fromSaved(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
-  return shownBranch(readTurns(stored, conversationId, nameOf) as unknown as Stored[]) as unknown as Turn[];
+  return shownOf(opened(readTurns(stored, conversationId, nameOf)));
 }
 
 /** "Today", "Yesterday", "8 Oct" or "8 Oct 2025" (in the current language): when a conversation last changed. */

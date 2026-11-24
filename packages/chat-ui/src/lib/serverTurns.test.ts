@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { setLang } from "../i18n";
 import type { Turn } from "../types";
-import { answerStored, answerTo, fromSaved, readTurns, shownBranch } from "./conversations";
+import { answerStored, answerTo, fromSaved, readTurns } from "./conversations";
 import { saveState } from "./documentActions";
 import { askedAgain, toFollow, withStored } from "./ask";
 import type { StoredDocument } from "../api";
@@ -23,15 +23,15 @@ describe("a conversation the server keeps as a tree", () => {
     // q1 answered twice (Regenerate); q2 followed the first answer, q3 the second
     const turns = [question(1, "q1", null), answer(2, "a1", 1), answer(3, "a1b", 1), question(4, "q2", 2), answer(5, "a2", 4),
                    question(6, "q3", 3), answer(7, "a3", 6)];
-    expect(shownBranch(turns).map((t) => t.seq)).toEqual([1, 3, 6, 7]);
-    expect(shownBranch([question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)])
+    expect(fromSaved(stored(...turns)).map((t) => t.seq)).toEqual([1, 3, 6, 7]);
+    expect(fromSaved(stored(question(1, "q1", null), answer(2, "a1", 1), question(3, "q2", 2), answer(4, "a2", 3), answer(5, "a2b", 3)))
       .map((t) => t.text)).toEqual(["q1", "a1", "q2", "a2b"]);
   });
 
   it("goes on after turns the chat UI saved itself, which follow the one before", () => {
     const turns = [{ seq: 1, role: "user", text: "q1" }, { seq: 2, role: "assistant", text: "a1", status: "done" },
                    question(3, "q2", 2), answer(4, "a2", 3)];
-    expect(shownBranch(turns).map((t) => t.seq)).toEqual([1, 2, 3, 4]);
+    expect(fromSaved(stored(...turns)).map((t) => t.seq)).toEqual([1, 2, 3, 4]);
   });
 });
 
@@ -39,7 +39,7 @@ describe("a turn the server stored, as the screen shows it", () => {
   it("a question with the documents it showed, named as they are now, a deleted one taken out", () => {
     const [q] = fromSaved(stored(question(1, "Wat is de prijs?", null, { attached: [DEED], about: ["gone"] })), CID,
                           (id) => (id === DEED ? "akte.pdf" : undefined));
-    expect(q).toEqual({ id: `${CID}/1`, seq: 1, byServer: true, parent: null, role: "user", text: "Wat is de prijs?",
+    expect(q).toEqual({ id: `${CID}/1`, seq: 1, byServer: true, follows: null, role: "user", text: "Wat is de prijs?",
                         attachments: [{ key: DEED, status: "ready", documentId: DEED, filename: "akte.pdf" }],
                         about: [{ documentId: "gone", filename: "", removed: true }] });
   });
@@ -96,10 +96,11 @@ describe("the answer to a question, by the question it answers (never by its pla
 });
 
 describe("turns read back", () => {
-  it("follow the turn the server says, and turns saved whole follow none (no versions)", () => {
-    expect(readTurns([question(1, "q1", null), answer(2, "a1", 1)] as never).map((t) => t.parent)).toEqual([null, 1]);
-    expect(readTurns([{ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }] as never)
-      .map((t) => t.parent)).toEqual([undefined, undefined]);
+  it("follow the turn the server says, by its id; turns saved whole follow the one before (no versions)", () => {
+    expect(readTurns(stored(question(1, "q1", null), answer(2, "a1", 1), answer(3, "a1b", 1)), CID).map((t) => t.follows))
+      .toEqual([null, `${CID}/1`, `${CID}/1`]);
+    expect(readTurns(stored({ seq: 1, role: "user", text: "q" }, { seq: 2, role: "assistant", text: "a" }))
+      .map((t) => t.follows)).toEqual([null, "saved-0"]);
   });
 });
 
