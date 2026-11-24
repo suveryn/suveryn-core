@@ -679,13 +679,14 @@ function Chat({ me }: { me: Me }) {
       listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
     }
     refreshConversations();  // a new conversation is listed, a known one moves up
-    if (deletedHere.current.size > 0) readOpenAgain();  // a document deleted while this answer was written
     // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
     // found by its question, so it counts among the question's versions (board 81)
     const stored = numbered as { question: number; answer: number | null } | null;
     const found = stored && stored.answer === null ? await answerStored(readConversation, stored.question, knownAnswers) : null;
     // shown or switched away from meanwhile: it is one of the turns known all the same
     if (found) changeTurns((ts) => withStored(ts, user.id, reply.id, { question: stored!.question, answer: found.answer }));
+    // a document deleted while this answer was written: read again now that it is stored (and numbered), so it stays
+    if (deletedHere.current.size > 0) readOpenAgain();
     if (retryWith) {  // a new question only (``asking`` undefined): the pair goes, asked once more with the documents now
       setConversation((c) => without(c, new Set([user.id, reply.id])));
       await send(text, attachments, asked, retryWith);
