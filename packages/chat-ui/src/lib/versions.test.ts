@@ -2,6 +2,7 @@
  *  turn it follows, and the last one shown; the branch on screen is worked out from these. */
 import { describe, expect, it } from "vitest";
 import type { AssistantTurn, Turn, UserTurn } from "../types";
+import { askedAgain, canRegenerate } from "./ask";
 import { answeredAgain, asked, NO_CONVERSATION, opened, shownOf, switchedTo, versionsOf, without } from "./versions";
 
 const q = (seq: number, follows: string | null): UserTurn => ({ id: `q${seq}`, seq, follows, byServer: true, role: "user", text: `q${seq}`, attachments: [] });
@@ -47,5 +48,18 @@ describe("a conversation the page keeps", () => {
     // asked again, the question stays: only the new answer goes
     const again = answeredAgain(opened(all), "q1", writing("w"));
     expect(ids(shownOf(without(again, new Set(["w"]))))).toEqual(["q1"]);
+  });
+
+  it("Regenerate on a question the server refused: the failed pair goes and it is asked anew, never a version", () => {
+    // review of the one list: hung under the refused question, it showed 2 of 2 the server never kept, and a
+    // follow-up from the refusal was filed under the other answer
+    const refused = { ...q(3, "a2"), seq: undefined, byServer: undefined }, failed = { ...a(4, "q3", "error"), seq: undefined };
+    const c = asked(opened([q(1, null), a(2, "q1")]), refused, failed);
+    const shown = shownOf(c);
+    expect(canRegenerate(shown, 3, { busy: false, disabled: false, savedConversations: true })).toBe(true);
+    expect(askedAgain(refused, true)).toBeUndefined();  // nothing stored to ask again: App asks it anew
+    const anew = asked(without(c, new Set(["q3", "a4"])), { ...refused, id: "q5" }, writing("w"));
+    expect(ids(shownOf(anew))).toEqual(["q1", "a2", "q5", "w"]);
+    expect(versionsOf(anew, shownOf(anew), 3)).toBeNull();
   });
 });

@@ -64,8 +64,8 @@ import { SignOutDialog } from "./components/SignOutDialog";
 import { UsageView } from "./components/UsageView";
 import { AdminView, type AdminPage } from "./components/Admin";
 import { today } from "./lib/usage";
-import { answerStored, conversationTitle, listedTitle, newConversationId, readTurns, withoutDocument } from "./lib/conversations";
-import { answeredAgain, asked as asked_, NO_CONVERSATION, opened as openedConversation, shownOf, switchedTo, versionsOf, without,
+import { answerStored, conversationTitle, listedTitle, newConversationId, withoutDocument } from "./lib/conversations";
+import { answeredAgain, asked as asked_, NO_CONVERSATION, shownOf, switchedTo, versionsOf, without,
          type Conversation } from "./lib/versions";
 import { conversationHistory } from "./lib/history";
 import { originKind } from "./lib/origin";
@@ -618,7 +618,7 @@ function Chat({ me }: { me: Me }) {
     let now: StoredDocument[] | null = null;
     let next: ReturnType<typeof afterDeletion> = null;
     // what a new question follows: the answer shown last that the server numbered (#251)
-    const follows = historyReady && asking === undefined ? await answerFollowed(turns) : {};
+    const after = historyReady && asking === undefined ? await answerFollowed(turns) : {};
     let numbered: { question: number; answer: number | null } | null = null;  // what the server said it stored
     const knownAnswers = new Set(conversation.turns.filter((t) => t.role === "assistant").map((t) => t.seq));  // the versions before this one
     const said: AnswerHandlers = {
@@ -649,7 +649,7 @@ function Chat({ me }: { me: Me }) {
             text, document_ids: [...docIds], about: asked.map((c) => c.documentId),
             attached: attachments.filter((a) => a.documentId && isReady(a)).map((a) => a.documentId!),
             ...(caseId ? { case_id: caseId } : {}), ...(chosenModel ? { model: chosenModel } : {}), ...(thinking ? { thinking: true } : {}),
-            ...follows }, said, abort.current.signal)
+            ...after }, said, abort.current.signal)
         : await streamChat([...history, { role: "user", content: text }], [...docIds], said.onDelta, abort.current.signal, chosenModel,
                            said.onStatus, caseId, said.onSources, { on: thinking, onText: said.onThinking! });
       update(answerPatch(done, { thought, thinkSeconds, partial: asked.length > 0 && whole === false }));
@@ -699,9 +699,11 @@ function Chat({ me }: { me: Me }) {
   // and what followed it leaves the screen (one arrow away). Without saved conversations: the last failed one, as before.
   const regenerable = (i: number) => !locked && canRegenerate(turns, i, { busy, disabled: !!disabledReason, savedConversations: historyReady });
   const regenerate = (i: number) => {
-    const question = turns[i - 1] as UserTurn;
-    // asked again as it was asked: by the server, from the question it stored (#251), or as before without it
-    send(question.text, question.attachments, question.about ?? [], undefined, askedAgain(question, historyReady), question);
+    const question = turns[i - 1] as UserTurn, asking = askedAgain(question, historyReady);
+    // a question the server stored: asked again as it was asked, one more version of its answers (#251). One it never
+    // stored (refused), or without saved conversations: the failed pair goes, and the question is asked anew, as before.
+    if (asking === undefined) setConversation((c) => without(c, new Set([question.id, turns[i].id])));
+    send(question.text, question.attachments, question.about ?? [], undefined, asking, asking === undefined ? undefined : question);
   };
   // An answer's versions (board 81): ‹ n / total ›; switching changes everything below it to that version's branch.
   const versionsAt = (i: number): AnswerVersions | null => {
@@ -1022,7 +1024,7 @@ function Chat({ me }: { me: Me }) {
       const opened = reopened(c.turns, thinkingDefault(), id, documentName);
       setConversationId(id);
       setSavedHere(new Set());
-      setConversation(openedConversation(readTurns(c.turns, id, documentName)));
+      setConversation(opened.conversation);
       setAbout(opened.about);
       setThinking(opened.thinking);
       setAboutGone(false);

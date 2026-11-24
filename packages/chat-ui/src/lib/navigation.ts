@@ -8,7 +8,8 @@ import type { CaseAction } from "../components/Sidebar";
 import type { Turn } from "../types";
 import { restoreAbout } from "./askAbout";
 import type { Message } from "./messages";
-import { fromSaved } from "./conversations";
+import { readTurns } from "./conversations";
+import { opened, shownOf } from "./versions";
 import { PIN_HINT_AFTER, pinnedConversations } from "./conversationActions";
 import { restoreThinking } from "./thinking";
 
@@ -50,11 +51,12 @@ export function pinHintDue(all: ConversationSummary[], id: string, pinned: boole
   return pinned && !shownBefore && pinnedConversations(all).filter((x) => x.id !== id).length + 1 > PIN_HINT_AFTER;
 }
 
-/** A saved conversation opened: its turns (the branch shown, the documents named as ``nameOf`` knows them), what it
- *  was asking about (§10), and Fast or Thorough (§5). */
+/** A saved conversation opened: every turn and the branch shown (lib/versions.ts; the documents named as ``nameOf``
+ *  knows them), what it was asking about (§10), and Fast or Thorough (§5). */
 export function reopened(saved: Turn[], thinkingByDefault: boolean, conversationId = "", nameOf?: (id: string) => string | undefined) {
-  const turns = fromSaved(saved, conversationId, nameOf);
-  return { turns, about: restoreAbout(turns), thinking: restoreThinking(turns, thinkingByDefault) };
+  const conversation = opened(readTurns(saved, conversationId, nameOf));
+  const turns = shownOf(conversation);
+  return { conversation, turns, about: restoreAbout(turns), thinking: restoreThinking(turns, thinkingByDefault) };
 }
 
 /** Signing out asks first, keep or delete, when there are saved conversations to keep. */
