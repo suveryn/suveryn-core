@@ -822,7 +822,11 @@ const fr: Messages = {
   offlineSend: "Vous pourrez envoyer dès que le serveur sera de retour.",
   answerCutOff: "Réponse interrompue : la connexion a été perdue.",
   regenerate: "Régénérer",
-  regenerateWhat: "Poser à nouveau la même question",
+  regenerateWhat: "Poser à nouveau la même question ; cette réponse est conservée.",
+  answerVersion: m("Réponse {n} sur {total}"),
+  previousAnswer: "Réponse précédente",
+  nextAnswer: "Réponse suivante",
+  versionCount: m("{n} / {total}"),
   // progression de la lecture, annulation et raisons d'un échec (les codes du lecteur : suveryn_rag.reading)
   cardRecognising: m("Reconnaissance du texte · page {done, number} sur {total, number}"),
   cardRecognisingStart: "Reconnaissance du texte",

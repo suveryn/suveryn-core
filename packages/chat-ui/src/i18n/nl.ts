@@ -822,7 +822,11 @@ const nl: Messages = {
   offlineSend: "Verzenden kan zodra de server terug is.",
   answerCutOff: "Antwoord onderbroken: de verbinding viel weg.",
   regenerate: "Opnieuw genereren",
-  regenerateWhat: "Dezelfde vraag opnieuw stellen",
+  regenerateWhat: "Dezelfde vraag opnieuw stellen; dit antwoord blijft bewaard.",
+  answerVersion: m("Antwoord {n} van {total}"),
+  previousAnswer: "Vorig antwoord",
+  nextAnswer: "Volgend antwoord",
+  versionCount: m("{n} / {total}"),
   // leesvoortgang, annuleren en waarom lezen mislukte (de codes van de lezer: suveryn_rag.reading)
   cardRecognising: m("Tekst wordt herkend · pagina {done, number} van {total, number}"),
   cardRecognisingStart: "Tekst wordt herkend",

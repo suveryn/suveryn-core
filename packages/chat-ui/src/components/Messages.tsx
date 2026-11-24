@@ -7,7 +7,7 @@
  */
 import {
   Brain, Calculator, Check, ChevronLeft, ChevronRight, CircleAlert, Copy, Download, ExternalLink, FileSpreadsheet, FileText, Files,
-  FolderInput, Square, TriangleAlert, X
+  FolderInput, RotateCcw, Square, TriangleAlert, X
 } from "lucide-react";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Button, IconButton, InlineNotice, LinkButton, MenuButton, SourceRef, SplitButton, TextButton, Toolbar } from "../ui";
@@ -65,7 +65,7 @@ function CopyButton({ text, label, what }: { text: string; label: string; what: 
     return () => clearTimeout(t);
   }, [state]);
   return (
-    <Button variant="plain" className="copy-button" aria-label={m.copyWhat({ what })}
+    <Button variant="plain" className="copy-button" aria-label={m.copyWhat({ what })} title={m.copyWhat({ what })}
             onPress={async () => setState((await copyText(text)) ? "copied" : "failed")}>
       {state === "copied" ? <Check size={13} aria-hidden className="ui-icon-ok" /> : <Copy size={13} aria-hidden />}
       <span aria-live="polite">{state === "copied" ? m.copied : state === "failed" ? m.copyFailed : label}</span>
@@ -274,8 +274,38 @@ export function AnswerNotes({ turn }: { turn: Pick<AssistantTurn, "thinkingCut" 
   );
 }
 
+/** An answer's versions (board 81, suveryn-tracker#251): ‹ n / total ›, first in its actions. The arrows are disabled
+ *  at the ends (and while an answer is written), never hidden. After a switch the page says the new number, not what
+ *  changed below it, and keeps the focus on an arrow (App.tsx). */
+export type AnswerVersions = { of: string; n: number; total: number; busy: boolean; onPrevious: () => void; onNext: () => void };
+
+function VersionSwitch({ versions, alone = false }: { versions: AnswerVersions; alone?: boolean }) {
+  const m = useT();
+  const { n, total, busy } = versions;
+  return (
+    <>
+      <span role="group" className="answer-versions" aria-label={m.answerVersion({ n, total })} data-versions-of={versions.of}>
+        <IconButton label={m.previousAnswer} isDisabled={busy || n <= 1} onPress={versions.onPrevious}><ChevronLeft size={16} aria-hidden /></IconButton>
+        <span className="answer-versions-count" aria-hidden>{m.versionCount({ n, total })}</span>
+        <IconButton label={m.nextAnswer} isDisabled={busy || n >= total} onPress={versions.onNext}><ChevronRight size={16} aria-hidden /></IconButton>
+      </span>
+      {!alone && <span className="answer-actions-divider" aria-hidden />}
+    </>
+  );
+}
+
+/** *Regenerate*, last in an answer's actions (board 81): the same question again, this answer kept. */
+function RegenerateButton({ onPress }: { onPress: () => void }) {
+  const m = useT();
+  return (
+    <Button variant="plain" className="copy-button regenerate" onPress={onPress} title={m.regenerateWhat} aria-label={m.regenerate}>
+      <RotateCcw size={13} aria-hidden /><span>{m.regenerate}</span>
+    </Button>
+  );
+}
+
 export function AssistantMessage({ turn, question, filenames, caseRef = null, save = null, source = null, onSource, onRegenerate = null,
-                                  aboutChosen = false }: {
+                                  aboutChosen = false, versions = null }: {
   turn: AssistantTurn; question: string; filenames: Map<string, string>;
   /** The question was asked about chosen documents (§10): the answer names the documents it rests on (board G18). */
   aboutChosen?: boolean;
@@ -285,8 +315,10 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
   /** This answer's source open in the panel, if any; ``onSource`` opens one (or closes it, pressed again). */
   source?: OpenSource | null;
   onSource: (s: OpenSource) => void;
-  /** A failed or cut-off answer, the last one: ask the same question again. */
+  /** Ask the same question again, this answer kept as a version (board 81): on a finished, stopped or failed answer. */
   onRegenerate?: (() => void) | null;
+  /** Its versions, when it has more than one. */
+  versions?: AnswerVersions | null;
 }) {
   const m = useT();
   const open = source?.n ?? null;
@@ -336,8 +368,14 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           <p className="answer-failed">
             <CircleAlert size={14} aria-hidden />
             <span>{turn.cutOff ? m.answerCutOff : failureWords(turn, m) ? m.answerFailed({ why: failureWords(turn, m) }) : m.answerFailedPlain}</span>
-            {onRegenerate && <Button size="small" onPress={onRegenerate} title={m.regenerateWhat}>{m.regenerate}</Button>}
           </p>
+          {/* a failed version offers only Regenerate, with its arrows (board 81) */}
+          {(versions || onRegenerate) && (
+            <Toolbar label={m.answerActions} className="answer-actions">
+              {versions && <VersionSwitch versions={versions} />}
+              {onRegenerate && <RegenerateButton onPress={onRegenerate} />}
+            </Toolbar>
+          )}
         </div>
       </div>
     );
@@ -397,11 +435,25 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
           </div>
         )}
 
-        {turn.status === "done" && turn.text && (
+        {/* being written: its arrows, disabled, and nothing else (board 81) */}
+        {turn.status === "streaming" && versions && (
+          <Toolbar label={m.answerActions} className="answer-actions"><VersionSwitch versions={versions} alone /></Toolbar>
+        )}
+        {/* stopped: Copy and Regenerate (no Word, no Save: finished answers only) */}
+        {turn.status === "stopped" && (versions || onRegenerate || turn.text) && (
           <Toolbar label={m.answerActions} className="answer-actions">
-            <CopyButton label={m.copy} what={m.answerWithSources}
-                        text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />
-            <DownloadFormats kind="answer"
+            {versions && <VersionSwitch versions={versions} />}
+            {turn.text && <CopyButton label={m.copy} what={m.answerWithSources}
+                                      text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />}
+            {onRegenerate && <RegenerateButton onPress={onRegenerate} />}
+          </Toolbar>
+        )}
+        {turn.status === "done" && (turn.text || versions || onRegenerate) && (
+          <Toolbar label={m.answerActions} className="answer-actions">
+            {versions && <VersionSwitch versions={versions} />}
+            {turn.text && <CopyButton label={m.copy} what={m.answerWithSources}
+                        text={[stripMarkers(turn.text), allSources].filter(Boolean).join("\n\n")} />}
+            {turn.text && <DownloadFormats kind="answer"
                              formats={[{ id: "docx", label: m.downloadWord, what: mark() ? m.downloadWordWhatConfidential : m.downloadWordWhat,
                                          hint: m.formatWordHint },
                                        { id: "md", label: m.markdownFile, what: m.downloadMarkdownWhat, hint: m.formatMarkdownHint }]}
@@ -413,8 +465,9 @@ export function AssistantMessage({ turn, question, filenames, caseRef = null, sa
                                }
                                const { answerToWord } = await import("../lib/office");
                                return [name, await answerToWord(exported(), officeText(m), lang())];
-                             }} />
+                             }} />}
             {save && <SaveToCaseActions save={save} />}
+            {onRegenerate && <RegenerateButton onPress={onRegenerate} />}
           </Toolbar>
         )}
 

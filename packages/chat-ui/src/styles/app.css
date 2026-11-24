@@ -473,6 +473,11 @@ span.chip-run { cursor: default; }
 .answer-basis svg { flex: none; }
 /* An answer's actions (§6): a quiet toolbar, its buttons borderless until hovered. */
 .answer-actions { margin: var(--space-2) 0 0 -8px; }
+/* an answer's versions (board 81): ‹ n / total ›, first in its actions, then a thin divider */
+.answer-versions { display: inline-flex; align-items: center; gap: 2px; }
+.answer-versions .ui-icon-button { width: 32px; height: 32px; color: var(--text); }
+.answer-versions-count { font-size: var(--text-caption); font-variant-numeric: tabular-nums; color: var(--text-dim); padding-inline: var(--space-1); }
+.answer-actions-divider { width: 1px; height: 16px; margin-inline: var(--space-1); background: var(--line); }
 .answer-actions .copy-button { border-color: transparent; color: var(--text-dim); }
 .answer-actions .copy-button:hover, .answer-actions .copy-button[data-focus-visible] { background: var(--surface-alt); color: var(--text); }
 /* A split download button (Word or Markdown, Excel or CSV): the hairline between the two halves stays. */
@@ -609,6 +614,11 @@ span.chip-run { cursor: default; }
   .ui-drawer .ui-icon-button, .ui-drawer .ui-expander-label, .ui-drawer .ui-expander-toggle, .ui-drawer .side-actions, .account-row { min-height: 44px; }
   .main .ui-icon-button, .ui-drawer .ui-icon-button, .main .send-button, .composer-more, .ui-drawer .ui-expander-toggle, .ui-drawer .side-actions { min-width: 44px; }
   .ui-drawer .sidebar { height: 100%; border-right: 0; }
+  /* board 81: the arrows stay first and 44 px; Copy and Regenerate as icons, named by their label and tooltip */
+  .answer-versions .ui-icon-button { width: 44px; height: 44px; }
+  .answer-actions .copy-button.regenerate > span, .answer-actions .copy-button:not(.ui-menu-button):not(.ui-split-main) > span[aria-live] {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .answer-actions .copy-button.regenerate, .answer-actions .copy-button:has(> span[aria-live]) { min-width: 44px; justify-content: center; }
   .side-actions { opacity: 1; }
 }
 .top-bar { display: flex; align-items: center; gap: var(--space-2); min-height: 56px; padding: 0 var(--space-2); border-bottom: 1px solid var(--line); }

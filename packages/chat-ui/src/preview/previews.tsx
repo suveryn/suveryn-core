@@ -14,7 +14,7 @@ import { HttpError } from "../api";
 import { CASE_118, CASE_124, CONVERSATION, MANAGES_109, MANAGES_118 } from "./sample";
 import { Steps, type Step } from "./steps";
 import { hold, offline, replace } from "./fakeApi";
-import { AS_READER_123 } from "./sample";
+import { AS_READER_123, VERSIONS, VERSIONS_STOPPED_FAILED } from "./sample";
 import { AS_READER, EMPTY_OFFICE, KEY_TEST_DUE, NO_RUN, RUN_DONE, RUN_CANCELLED, RUN_FAILED, RUN_PAUSED, RUN_READING, RUN_STOPPED } from "./sample";
 import type { Lang } from "../i18n";
 
@@ -92,6 +92,22 @@ export const PREVIEWS: Preview[] = [
     render: app({ click: "Prijs en kosten" }) },
   { id: "g19-narrow-sheet", board: "G19", lang: "nl", title: "7 · Smal (390 px): Vraag over als blad", width: 390,
     render: app({ click: "Menu openen" }, { click: "Prijs en kosten" }, { click: "Vraag over" }) },
+  // An answer's versions (board 81, suveryn-tracker#251): ‹ n / total › first in its actions, Regenerate on every answer
+  { id: "81-versions", board: "81", lang: "nl", title: "Twee versies van een antwoord, de tweede met een vervolgvraag",
+    setup: () => replace(VERSIONS), render: app({ click: "Erfdienstbaarheden" }) },
+  { id: "81-switched", board: "81", lang: "nl", title: "Teruggeschakeld naar versie 1: zonder vervolg",
+    setup: () => replace(VERSIONS), render: app({ click: "Erfdienstbaarheden" }, { click: "Vorig antwoord" }) },
+  { id: "81-regenerating", board: "81", lang: "nl", title: "Opnieuw genereren: versie 3 van 3 wordt geschreven",
+    setup: () => { replace(VERSIONS); hold(/^\/v1\/conversations\/[^/]+\/questions$/); },
+    render: app({ click: "Erfdienstbaarheden" }, { click: "Opnieuw genereren" }) },
+  { id: "81-failed", board: "81", lang: "nl", title: "Een mislukte versie: alleen Opnieuw genereren",
+    setup: () => replace(VERSIONS_STOPPED_FAILED), render: app({ click: "Erfdienstbaarheden" }) },
+  { id: "81-stopped", board: "81", lang: "nl", title: "Een gestopte versie: Kopiëren en Opnieuw genereren",
+    setup: () => replace(VERSIONS_STOPPED_FAILED), render: app({ click: "Erfdienstbaarheden" }, { click: "Vorig antwoord" }) },
+  { id: "81-reader", board: "81", lang: "nl", title: "Een lezer: schakelt tussen versies, genereert niets",
+    setup: () => replace([...AS_READER_123, ...VERSIONS]), render: app({ click: "Erfdienstbaarheden" }) },
+  { id: "81-narrow", board: "81", lang: "nl", title: "Smal (390 px): de pijlen eerst, de acties als iconen", width: 390,
+    setup: () => replace(VERSIONS), render: app({ click: "Menu openen" }, { click: "Erfdienstbaarheden" }) },
   // the band for its manager: Toegang wijzigen at its end (board 80)
   { id: "g20-confidential", board: "G20", lang: "nl", title: "Strikt vertrouwelijk dossier: de beheerder", setup: () => replace(MANAGES_118),
     render: app({ click: "Dossiers" }, { click: "118" }) },

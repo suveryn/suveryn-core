@@ -480,6 +480,35 @@ const SAVED_MIXED: SavedConversation = served({
       ] }, [1, "drie"], [2]),
   ],
 });
+/** Versions of an answer (board 81, suveryn-tracker#251), as the server keeps them: a tree, each turn naming the one it
+ *  follows. The servitudes question answered twice (Regenerate), the second answer with a follow-up. */
+const [ERF_QUESTION, ERF_ANSWER] = SAVED_MIXED.turns as unknown as Record<string, unknown>[];
+const ERF_DEED = { text: "Het goed is bezwaard met een erfdienstbaarheid van doorgang over een strook van drie meter langs de oostelijke perceelsgrens.",
+                   source: { document_id: "d-compromis", page: 4, location: null } };
+const versionsOf = (...turns: Record<string, unknown>[]): SavedConversation => ({ ...SAVED_MIXED, turns: turns as unknown as Turn[] });
+const SAVED_VERSIONS = versionsOf(
+  { ...ERF_QUESTION, seq: 1, parent: null },
+  { ...ERF_ANSWER, seq: 2, parent: 1, citations: [ERF_DEED], support_spans: [],
+    text: "Er rust één erfdienstbaarheid op het goed: een recht van doorgang over een strook van drie meter langs de oostelijke grens [1]." },
+  { ...ERF_ANSWER, seq: 3, parent: 1 },
+  { ...ERF_QUESTION, seq: 4, parent: 3, text: "Moet die erfdienstbaarheid van doorgang in de akte worden overgenomen?", document_ids: ["d-compromis"] },
+  { ...ERF_ANSWER, seq: 5, parent: 4, support_spans: [],
+    text: "Ja. Het compromis bepaalt dat de erfdienstbaarheid van doorgang in de authentieke akte wordt overgenomen [1].",
+    citations: [{ text: "De partijen verbinden zich ertoe de erfdienstbaarheid van doorgang over te nemen in de authentieke akte.",
+                  source: { document_id: "d-compromis", page: 5, location: null } }] },
+);
+/** The same question with a stopped and a failed version beside the first (board 81, 4). */
+const SAVED_STOPPED_FAILED = versionsOf(
+  { ...ERF_QUESTION, seq: 1, parent: null },
+  { ...ERF_ANSWER, seq: 2, parent: 1 },
+  { ...ERF_ANSWER, seq: 3, parent: 1, outcome: "stopped", support_spans: [], citations: [ERF_DEED],
+    text: "Op het goed rust een erfdienstbaarheid van doorgang over een strook van drie meter [1]. Het kadaster" },
+  { ...ERF_ANSWER, seq: 4, parent: 1, outcome: "failed", text: "", citations: [], support_spans: [],
+    failure: { kind: "unavailable", code: "model.unavailable", params: {} } },
+);
+export const VERSIONS: Route[] = [["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_VERSIONS]];
+export const VERSIONS_STOPPED_FAILED: Route[] = [["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_STOPPED_FAILED]];
+
 /** Case 123 as a reader (board G19, 6): sees what each question read, asks nothing. */
 /** Case 109 (a marriage contract: no playbook fits it) or 118 (strictly confidential) as their manager (board 80). */
 const asManager = (id: string): Route[] => [["GET", new RegExp(`^/v1/cases/${id}$`), { ...CASES.find((c) => c.id === id)!, my_role: "manager", manager: "u-test" }],

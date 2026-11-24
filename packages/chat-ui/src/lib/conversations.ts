@@ -49,12 +49,30 @@ export function shownBranch<T extends Stored>(turns: T[]): T[] {
 }
 
 /** The newest stored answer to the question numbered ``question``: the one it follows (``parent``), or, for turns the
- *  chat UI saved whole, the turn after it. */
-export function answerTo(turns: unknown[], question: number): number | undefined {
+ *  chat UI saved whole, the turn after it. ``known``: answers this page already had, none of which is the one sought
+ *  (a version asked for just now, not stored yet, is not an earlier one). */
+export function answerTo(turns: unknown[], question: number, known: Set<number | undefined> = new Set()): number | undefined {
   const stored = turns as Stored[];
-  const answers = stored.filter((t, i) => t.role === "assistant"
+  const answers = stored.filter((t, i) => t.role === "assistant" && !known.has(t.seq)
     && ("parent" in t ? t.parent === question : stored[i - 1]?.seq === question));
   return answers.at(-1)?.seq;
+}
+
+/** The number the server gave the answer to the question numbered ``question``, stopped (or cut off) before the stream
+ *  said it: it is stored as the connection closes, so the conversation is read again (``read``) a few times until it
+ *  is there. With the turns read, to know it whether shown or not. ``known``: as for ``answerTo``. Undefined if it
+ *  never comes, or the conversation can't be read. */
+export async function answerStored(read: () => Promise<unknown[]>, question: number, known: Set<number | undefined> = new Set(),
+                                   tries = 5, wait = 300): Promise<{ answer: number; turns: Turn[] } | undefined> {
+  for (let i = 0; i < tries; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const turns = await read();
+      const answer = answerTo(turns, question, known);
+      if (answer !== undefined) return { answer, turns: turns as Turn[] };
+    } catch { /* not readable now: try again */ }
+  }
+  return undefined;
 }
 
 /** A turn the server stored, as the screen shows it: a question with the documents it showed (by id: their names
@@ -91,22 +109,32 @@ function fromServer(turn: Stored, question: Stored | undefined, conversationId: 
   return answer;
 }
 
-/** Turns read back from the server: the branch shown (``shownBranch``), each as the screen keeps it. An answer saved
- *  mid-stream (it shouldn't be) shows as interrupted. */
-export function fromSaved(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
-  const shown = shownBranch(stored as unknown as Stored[]);
-  const bySeq = new Map(shown.map((s) => [s.seq, s]));
-  return shown.map((saved) => saved.kind === "question" || saved.kind === "answer"
-    ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
-    : saved as unknown as Turn).map((saved, i) => {
+/** Every turn of a conversation read back from the server, as the screen keeps it, each naming the turn it follows
+ *  (``parent``, the server's; a turn the chat UI saved whole has none, and no versions: step 4 of #251 removes them). An answer saved mid-stream (it
+ *  shouldn't be) shows as interrupted. The screen shows one branch of them (``fromSaved``), and switches between an
+ *  answer's versions within them (lib/versions.ts). */
+export function readTurns(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
+  const raw = stored as unknown as Stored[];
+  const bySeq = new Map(raw.map((s) => [s.seq, s]));
+  return raw.map((saved, i) => {
+    const parent = "parent" in saved ? (saved.parent as number | null) ?? null : undefined;
+    const read = saved.kind === "question" || saved.kind === "answer"
+      ? fromServer(saved, saved.kind === "answer" ? bySeq.get(saved.parent as number) : undefined, conversationId, nameOf)
+      : saved as unknown as Turn;
     // A turn saved without the UI's own fields (through the API) opens all the same:
     // the lists default to empty, the id and status to something usable (VM regression of 29 October, finding 10).
-    const turn = { ...saved, id: saved.id || `saved-${i}`, text: saved.text ?? "" } as Turn;
+    const turn = { ...read, id: read.id || `saved-${i}`, text: read.text ?? "", ...(parent !== undefined ? { parent } : {}) } as Turn;
     if (turn.role === "user") return { ...turn, attachments: Array.isArray(turn.attachments) ? turn.attachments : [] };
     const answer = { ...turn, citations: Array.isArray(turn.citations) ? turn.citations : [], status: turn.status ?? "done",
                      grounded: turn.grounded ?? false };
     return answer.status === "streaming" ? { ...answer, text: "", status: "error", error: t().answerInterrupted } : answer;
   });
+}
+
+/** Turns read back from the server: the branch shown (``shownBranch``: the newest answer of each question, and what
+ *  followed it), each as the screen keeps it. */
+export function fromSaved(stored: Turn[], conversationId = "", nameOf: (id: string) => string | undefined = () => undefined): Turn[] {
+  return shownBranch(readTurns(stored, conversationId, nameOf) as unknown as Stored[]) as unknown as Turn[];
 }
 
 /** "Today", "Yesterday", "8 Oct" or "8 Oct 2025" (in the current language): when a conversation last changed. */
