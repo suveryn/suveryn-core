@@ -10,7 +10,7 @@
  * - ``canRegenerate``: whether the last question can be asked again.
  */
 import { HttpError, type ChatResponse, type StoredDocument } from "../api";
-import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn, type UserTurn } from "../types";
+import { isReady, staysInComposer, type AssistantTurn, type Attachment, type Chosen, type Turn } from "../types";
 import { questionDocuments } from "./questionDocuments";
 
 /** The documents attached to the conversation's questions so far, read and (once the list is known) still there:
@@ -86,16 +86,15 @@ export function failureKind(e: unknown, o: { stopped: boolean; streamed: string;
   return "error";
 }
 
-/** Regenerate: offered when nothing is being written, asking is possible, and the last answer failed after its question. */
 /** Whether the answer at ``i`` offers *Regenerate* (board 81): a finished, stopped or failed answer to a question the
- *  server stored, which it asks again as it was asked, the answer kept as a version; without saved conversations, as
- *  before, only the last answer and only when it failed. Never while an answer is written, where nothing can be asked,
- *  or for someone who only reads. */
-export function canRegenerate(turns: Turn[], i: number, o: { busy: boolean; disabled: boolean; savedConversations: boolean }): boolean {
+ *  server stored, which it asks again as it was asked, the answer kept as a version; to a question it refused (never
+ *  stored), only the last answer, which failed: asked anew. Never while an answer is written, where nothing can be
+ *  asked, or for someone who only reads. */
+export function canRegenerate(turns: Turn[], i: number, o: { busy: boolean; disabled: boolean }): boolean {
   const answer = turns[i], question = turns[i - 1];
   if (o.busy || o.disabled || answer?.role !== "assistant" || question?.role !== "user") return false;
   if (!["done", "stopped", "error"].includes(answer.status)) return false;
-  if (o.savedConversations && question.byServer && question.seq !== undefined) return true;
+  if (question.seq !== undefined) return true;
   return i === turns.length - 1 && answer.status === "error";
 }
 
@@ -103,14 +102,10 @@ export function canRegenerate(turns: Turn[], i: number, o: { busy: boolean; disa
  *  turns this page shows for them: what the next question follows, what Regenerate asks again, what Save to case names.
  *  Only turns the server stored this way get them: a refused question never does. */
 export function withStored(turns: Turn[], user: string, reply: string, stored: { question: number; answer: number | null }): Turn[] {
-  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question, byServer: true }
-    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer, byServer: true } : t) as Turn);
+  return turns.map((t) => (t.id === user ? { ...t, seq: stored.question }
+    : t.id === reply && stored.answer !== null ? { ...t, seq: stored.answer } : t) as Turn);
 }
 
-/** Regenerate: the stored question (its number) the server asks once more as it was asked; none for a question the
- *  chat UI saved whole before, or without saved conversations, which is asked as a new one. */
-export const askedAgain = (question: UserTurn, savedConversations: boolean): number | undefined =>
-  savedConversations && question.byServer ? question.seq : undefined;
 
 /** What a new question in a saved conversation follows: the newest answer on screen the server numbered (``after``),
  *  skipping what it refused, which it never stored. ``lookUp``: the newest numbered question whose answer this page

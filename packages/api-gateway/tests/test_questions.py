@@ -611,16 +611,3 @@ def test_the_answer_is_stored_before_its_last_event_goes_out(store):
         assert when_done == [["user", "assistant"]]
     finally:
         store._execute("DELETE FROM conversations WHERE id = %s", (uuid.UUID(cid),))
-
-
-def test_an_answer_is_as_long_as_the_chat_asks_for_without_saved_conversations():
-    """One length for an answer, wherever it is asked: the gateway's for a saved conversation, the chat UI's for
-    ``POST /v1/chat`` (its api.ts ``ANSWER_TOKENS``). Two numbers in two languages: held together here."""
-    import re
-    from pathlib import Path
-
-    from suveryn_api_gateway.routes.conversations import ANSWER_TOKENS
-
-    api = Path(__file__).parents[2] / "chat-ui" / "src" / "api.ts"
-    assert re.search(r"const ANSWER_TOKENS = (\d+);", api.read_text(encoding="utf-8")).group(1) == str(ANSWER_TOKENS)
-

@@ -30,16 +30,14 @@ export type Chosen = { documentId: string; filename: string; removed?: boolean }
 
 /** ``about``: in a case, the documents the question was asked about; absent: the whole case. */
 /** ``seq``: the turn's number in its conversation on the server, once stored (suveryn-tracker#251): what the next
- *  question follows. ``byServer``: a turn the server wrote as it answered (not one the chat UI saved whole before),
- *  which is what Regenerate asks again and Save to case names. ``follows``: the id of the turn it follows (a
+ *  question follows, what Regenerate asks again and Save to case names; a refused question has none. ``follows``: the id of the turn it follows (a
  *  conversation is a tree, as the server keeps it; null: the first), lib/versions.ts. */
-export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[]; seq?: number; byServer?: boolean;
+export type UserTurn = { id: string; role: "user"; text: string; attachments: Attachment[]; about?: Chosen[]; seq?: number;
                          follows?: string | null };
 
 export type AssistantTurn = {
   id: string;
   seq?: number;
-  byServer?: boolean;
   /** The id of the turn it follows, its question: an answer's versions are its question's answers (lib/versions.ts). */
   follows?: string | null;
   role: "assistant";

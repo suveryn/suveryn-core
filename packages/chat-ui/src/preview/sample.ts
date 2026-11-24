@@ -506,6 +506,8 @@ const SAVED_STOPPED_FAILED = versionsOf(
   { ...ERF_ANSWER, seq: 4, parent: 1, outcome: "failed", text: "", citations: [], support_spans: [],
     failure: { kind: "unavailable", code: "model.unavailable", params: {} } },
 );
+/** The conversation store down (suveryn-tracker#251): nothing is asked until it is back. */
+export const CONVERSATIONS_DOWN: Route[] = [["GET", /^\/health$/, () => ({ ...HEALTH, history: { status: "failed", detail: null } })]];
 export const VERSIONS: Route[] = [["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_VERSIONS]];
 export const VERSIONS_STOPPED_FAILED: Route[] = [["GET", /^\/v1\/conversations\/conv-erf$/, () => SAVED_STOPPED_FAILED]];
 

@@ -99,8 +99,9 @@ CREATE TABLE IF NOT EXISTS originals (
 
 
 def without(content: dict, document_id: str) -> dict:
-    """A saved answer's content without a deleted document's passages and file name, as the chat UI cleans a
-    conversation (``withoutDocument``): the citation keeps its page and is marked ``removed``; the answer stays."""
+    """A saved answer's content without a deleted document's passages and file name, as the gateway cleans a
+    conversation (its ``conversations.py``, ``redact``): the citation keeps its page and is marked ``removed``; the
+    answer stays."""
     out = dict(content)
     out["citations"] = [
         {"text": "", "source": {"document_id": document_id, "page": (c.get("source") or {}).get("page"), "location": None},

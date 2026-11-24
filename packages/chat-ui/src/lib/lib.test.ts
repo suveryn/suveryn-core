@@ -5,11 +5,10 @@ import { cellValue, checkLines, segmentText, tableRows } from "./export";
 import {
   formatSource, formatSourceMarkdown, formatSources, safeFileName, sourceFileName,
 } from "./copy";
-import { conversationHistory, HISTORY_CHARS } from "./history";
 import { modelName } from "./model";
 import { pageList, reviewHint } from "./review";
 import { statusText } from "./status";
-import { conversationTitle, dayLabel, savedConversation, newConversationId, usesDocument, withoutDocument } from "./conversations";
+import { conversationTitle, dayLabel, savedConversation, newConversationId, usesDocument } from "./conversations";
 import { shownOf } from "./versions";
 /** The branch a conversation read back shows. */
 const fromSaved = (...read: Parameters<typeof savedConversation>) => shownOf(savedConversation(...read));
@@ -17,7 +16,7 @@ import { rangeFor, today } from "./usage";
 import { claimRedirect, LOOP_WINDOW_MS, shouldRedirect } from "./signin";
 import { httpErrorText, reviewPages } from "../api";
 import { setLang } from "../i18n";
-import type { AssistantTurn, Turn, UserTurn } from "../types";
+import type { Turn } from "../types";
 import { createSSEParser, type SSEEvent } from "./sse";
 
 /** The segments of a text block (paragraph or list item). */
@@ -137,21 +136,6 @@ describe("documents that need review", () => {
     expect(reviewHint([1])).toContain("Ready to use. Some text on page 1 may not");
     expect(reviewHint([1, 3])).toContain("on pages 1 and 3");
     expect(reviewHint([])).toContain("on some pages");
-  });
-});
-
-describe("conversation history", () => {
-  it("leaves out a question whose answer failed, so roles alternate", () => {
-    const turns = [
-      { id: "1", role: "user", text: "Vraag 1", attachments: [] },
-      { id: "2", role: "assistant", text: "Antwoord [1].", citations: [], status: "done", grounded: true },
-      { id: "3", role: "user", text: "Vraag 2", attachments: [] },
-      { id: "4", role: "assistant", text: "", citations: [], status: "error", grounded: true, error: "x" },
-    ] as Turn[];
-    expect(conversationHistory(turns)).toEqual([
-      { role: "user", content: "Vraag 1" },
-      { role: "assistant", content: "Antwoord [1]." },  // with its marker: the server makes it [*]
-    ]);
   });
 });
 
@@ -307,15 +291,8 @@ describe("deleted documents (suveryn-tracker#12)", () => {
       { text: "Verkoper: Jan Peeters.", source: { document_id: "other", page: 1, location: "p. 1" } }] },
   ];
 
-  it("takes the document's passages and file name out, as the server does, and keeps the rest", () => {
-    expect(usesDocument(turns, DOC)).toBe(true);
-    const cleaned = withoutDocument(turns, DOC);
-    expect(usesDocument(cleaned, "missing")).toBe(false);
-    const [user, answer] = cleaned as [UserTurn, AssistantTurn];
-    expect(user.attachments[0]).toMatchObject({ filename: "", removed: true });
-    expect(answer.citations[0]).toEqual({ text: "", source: { document_id: DOC, page: 3, location: null }, removed: true });
-    expect(answer.citations[1].text).toBe("Verkoper: Jan Peeters.");
-    expect(answer.text).toBe("€ 345.000 [1] [2]");
+  it("is known in a conversation by its passages or its attachments: the open one is then read again", () => {
+    expect([usesDocument(turns, DOC), usesDocument(turns, "missing")]).toEqual([true, false]);
   });
 });
 
@@ -398,27 +375,7 @@ describe("server errors and long conversations", () => {
     setLang("en", false);
   });
 
-  it("sends at most the last 40 messages of a long conversation, starting with a question", () => {
-    const turns = Array.from({ length: 150 }, (_, i) => [
-      { id: `q${i}`, role: "user", text: `vraag ${i}`, attachments: [] },
-      { id: `a${i}`, role: "assistant", text: `antwoord ${i}`, citations: [], status: "done" },
-    ]).flat() as never[];
-    const sent = conversationHistory(turns);
-    expect(sent).toHaveLength(40);
-    expect(sent[0]).toEqual({ role: "user", content: "vraag 130" });
-    expect(sent.at(-1)).toEqual({ role: "assistant", content: "antwoord 149" });
-  });
 
-  it("drops the oldest pairs when the earlier turns are too long to send (audit of 21 October, finding 6)", () => {
-    const long = "x".repeat(25_000);
-    const turns = Array.from({ length: 4 }, (_, i) => [
-      { id: `q${i}`, role: "user", text: `question ${i}`, attachments: [] },
-      { id: `a${i}`, role: "assistant", text: `${i}${long}`, citations: [], status: "done" },
-    ]).flat() as never[];
-    const sent = conversationHistory(turns);
-    expect(sent.map((x) => x.content.slice(0, 10))).toEqual(["question 2", `2${"x".repeat(9)}`, "question 3", `3${"x".repeat(9)}`]);
-    expect(sent.reduce((n, x) => n + x.content.length, 0)).toBeLessThanOrEqual(HISTORY_CHARS);
-  });
 });
 
 // ---------------------------------------------------------------- origin: source or made (docs/design/chat-ui.md §6)

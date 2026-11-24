@@ -80,16 +80,15 @@ describe("an answer", () => {
   });
 
   it("Regenerate: any finished, stopped or failed answer to a question the server stored, nothing being written (board 81)", () => {
-    const free = { busy: false, disabled: false, savedConversations: true };
-    const stored = { ...user([]), seq: 1, byServer: true };
+    const free = { busy: false, disabled: false };
+    const stored = { ...user([]), seq: 1 };
     const conversation: Turn[] = [stored, answer("done"), { ...stored, seq: 3 }, answer("stopped"), { ...stored, seq: 5 }, answer("error")];
     expect([1, 3, 5].map((i) => canRegenerate(conversation, i, free))).toEqual([true, true, true]);
     expect(canRegenerate(conversation, 1, { ...free, busy: true })).toBe(false);
     expect(canRegenerate(conversation, 1, { ...free, disabled: true })).toBe(false);
     expect(canRegenerate([stored, answer("streaming")], 1, free)).toBe(false);
-    // without the server's question (saved conversations down): as before, the last answer, only when it failed
+    // a question the server refused (never numbered): the last answer only, which failed, asked anew
     const failed: Turn[] = [user([]), answer("done"), user([]), answer("error")];
-    expect([1, 3].map((i) => canRegenerate(failed, i, { ...free, savedConversations: false }))).toEqual([false, true]);
     expect([1, 3].map((i) => canRegenerate(failed, i, free))).toEqual([false, true]);
     expect(canRegenerate([answer("error")], 0, free)).toBe(false);
   });

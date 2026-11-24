@@ -30,7 +30,7 @@ class Answer(BaseModel):
 # All the messages of one request together, in characters (about 37,000 tokens): what a conversation
 # may bring along, before the documents' passages are added (up to ``WHOLE_DOCUMENT_CHARS``, 48,000).
 # Checked before any search or model call, so an oversized request costs nothing (audit of
-# 21 October 2026, finding 6). The UI sends at most ``HISTORY_CHARS`` of earlier turns (lib/history.ts).
+# 21 October 2026, finding 6). A conversation the server keeps brings at most ``HISTORY_CHARS`` of earlier turns (history.py).
 MAX_TOTAL_CHARS = 150_000
 
 

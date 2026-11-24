@@ -15,7 +15,7 @@ const groups = [...new Set(Object.values(described.paths).flatMap((byMethod) => 
 // The answer stream's events stand in the description where OpenAPI 3.2 puts what one event of a stream is
 // (`itemSchema`), as FastAPI writes it for its own streams. Orval reads OpenAPI 3.1, which has no such place and
 // refuses it: it is handed the same under `schema`, so the events' shapes are generated. The stream itself is read by
-// hand (src/api.ts, streamChat): Orval generates no reader for one.
+// hand (src/api.ts, askInConversation): Orval generates no reader for one.
 type Content = { schema?: unknown; itemSchema?: unknown };
 type Described = { paths: Record<string, Record<string, { responses?: Record<string, { content?: Record<string, Content> }> }>> };
 const asThreeOne = <Description extends object>(description: Description): Description => {

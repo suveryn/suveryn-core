@@ -221,7 +221,7 @@ A few things the harness relies on live elsewhere, because they belong to data o
 | What | Where | Why there |
 |---|---|---|
 | Finding passages, and the rule for what counts as a source | `packages/rag` (`Rag.passages`, `store.SOURCE`) | It is a database query over the stored documents |
-| Which earlier turns are sent: only completed answers (a stopped one may end mid-sentence), the last 40 messages | `packages/chat-ui/src/lib/history.ts` | The conversation is kept by the interface and sent with each question |
+| Which earlier turns are sent: only completed answers (a stopped one may end mid-sentence), the last 40 messages | `packages/harness` (`history.py`) | The server keeps the conversation and builds what the model reads from the turns it stored (suveryn-tracker#251) |
 | Who may ask about which documents | `packages/api-gateway` (cases, rights) | The harness is given documents the caller may read and never decides that itself |
 | The mark on downloaded answers that makes a re-upload recognisable | `packages/chat-ui/src/lib/marks.ts`, `packages/rag/src/suveryn_rag/marks.py` | It is part of the files, not of the model call |
 | The playbooks' instructions and facts | `packages/playbooks` | They are content, versioned per playbook |

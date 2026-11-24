@@ -2088,8 +2088,7 @@ export const SavedTurnRole = {
  * as it answers, suveryn-tracker#251). Checked: the role, the text's length, and the form of the document references at the three
  * places the gateway reads them itself (``_references``: a passage's source, an attachment, a document asked
  * about), to take a deleted document's passages and names out of every saved turn (``redact``). That those are the
- * places a saved turn names a document is held by a test both sides share (tests/saved_turns_to_clean.json;
- * the chat UI's src/lib/cleaning.test.ts).
+ * places a saved turn names a document is held by tests/saved_turns_to_clean.json.
  */
 export interface SavedTurn {
   role: SavedTurnRole;
