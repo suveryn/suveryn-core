@@ -8,6 +8,7 @@ What a VM regression round walks through by hand, run by a machine on every pull
 | [`llama_stub.py`](llama_stub.py) | The stand-in model server: llama-server's router-mode API, answers made from the prompt (a cited sentence of the matching excerpt; a playbook's facts table from keywords), thinking on request, and three hooks a question can trigger: `e2e:think-too-long`, `e2e:slow`, `e2e:error` |
 | [`realm.py`](realm.py) | The development realm with fixed client secrets, written into Keycloak's import folder |
 | [`tests/test_stub_contract.py`](tests/test_stub_contract.py) | The stub against the real `LlamaServerClient`, in-process: a change on either side fails here first |
+| [`tests/test_stack.py`](tests/test_stack.py) | `stack.py`'s choice of the machine's own PostgreSQL cluster in local mode, without starting anything. Not in CI (which uses Docker): run it when you change `stack.py` |
 | [`tests/test_walkthrough.py`](tests/test_walkthrough.py) | Sign in, and the browser's report of the appliance's clock; a document read and an answer that cites it (the injection attempt flagged, never followed); *Thorough* that thinks without answering, asked again; a case with a colleague and deed intake to its summary; the colleague's view; every Administration page and Status; an account switched off whose session ends within seconds; a new account's first sign-in with its temporary password; sign out |
 | [`tests/test_lifecycle.py`](tests/test_lifecycle.py) | PostgreSQL stopped and started: nobody signed out, the stores reconnect, the first upload after works; Keycloak stopped and started: `/health` notices, the session survives, a fresh sign-in works after; the model server away: the answer says so in words, and works again after; the sign-in page with the database down |
 | [`tests/test_playbook_runs.py`](tests/test_playbook_runs.py), [`runs/`](runs/) | **With a real model only** (`E2E_LLM`, the GPU round: `scripts/gpu-round.sh`): each playbook run start to finish through the gateway's API, its fictional documents per request, answers in words at its asks, the checks, the checkpoint and the summary; core's deed intake here (on the trap deed, and on a sale file of real length that is read in part and has one register number with a typo, which must be flagged), suveryn-packs' playbooks from `E2E_RUNS_DIR` (with `E2E_PACKS_DIR`). Each run's score (read right, not invented, checks as expected) is in the round's summary. The stub fills facts by keywords, so CI skips it |
@@ -26,7 +27,7 @@ SUVERYN_RAG_DEVICE=cpu uv run suveryn-fetch-models   # once: the gateway never d
 
 # PostgreSQL and Keycloak as containers (Docker present):
 E2E_SERVICES=docker uv run python e2e/stack.py up
-# or the machine's own PostgreSQL 16 cluster (with pgvector) and an unpacked Keycloak 26.8 (keycloak/README.md):
+# or the machine's own PostgreSQL cluster on 5432, 16 or newer with pgvector (pg_lsclusters, or E2E_PG_VERSION), and an unpacked Keycloak 26.8 (keycloak/README.md):
 E2E_SERVICES=local E2E_KEYCLOAK_HOME=~/keycloak uv run python e2e/stack.py up
 
 uv run pytest e2e/tests -v
