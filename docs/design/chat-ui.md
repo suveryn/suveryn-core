@@ -464,6 +464,9 @@ is ready.
   that nothing is lost, "Trying again in 10 seconds.", and offers *Try now*.
 - The composer keeps the typed text. Send is disabled (grey, not orange), with the reason beside it.
 - The server-unreachable bar shows after a health check found nothing, not while the first one runs; it counts down to the next check (every 10 seconds) and *Try now* checks at once. Its title is announced once, the countdown isn't.
+- A request that can't reach the gateway, or an answer whose connection breaks, says so in the interface's language
+  ("Can't reach the sūveryn server.", "The connection closed before the answer was complete."), wherever the reason
+  is shown: never the browser's own English ("Failed to fetch"). `lib/gateway.ts`, `reach` and `Unreachable`.
 
 ## 6. Saving answers, and where a document comes from
 

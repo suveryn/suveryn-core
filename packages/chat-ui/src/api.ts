@@ -10,7 +10,7 @@ import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
 import * as gateway from "./generated/gateway";
-import type { Answer } from "./lib/gateway";
+import { reach, unreachable, type Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
  *  have it. The screens read a turn's passages, calculations and marks through these. */
@@ -234,7 +234,7 @@ export type AnswerHandlers = {
  */
 export async function askInConversation(conversationId: string, question: gateway.QuestionIn, handlers: AnswerHandlers,
                                         signal?: AbortSignal): Promise<ChatResponse> {
-  const r = await fetch(gateway.getAskInConversationUrl(encodeURIComponent(conversationId)), {
+  const r = await reach(gateway.getAskInConversationUrl(encodeURIComponent(conversationId)), {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(question), signal });
   return readAnswer(r, handlers);
 }
@@ -260,9 +260,14 @@ async function readAnswer(r: Response, h: AnswerHandlers): Promise<ChatResponse>
   });
   const reader = r.body.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) {
-    const { value, done: finished } = await reader.read();
-    if (finished) break;
-    parser.feed(value);
+    let read: ReadableStreamReadResult<string>;
+    try {
+      read = await reader.read();
+    } catch (e) {  // the connection broke while the answer came
+      throw unreachable(e, t().streamCutOff);
+    }
+    if (read.done) break;
+    parser.feed(read.value);
   }
   if (failure) throw new StreamFailure(messageText(failure, t()), failure);
   if (!done) throw new Error(t().streamCutOff);
