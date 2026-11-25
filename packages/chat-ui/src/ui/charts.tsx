@@ -120,7 +120,7 @@ function readOut(d: Datum, series: Series[], format: (n: number) => string, text
   return `${d.label}: ${parts.join(", ")}`;
 }
 
-function ChartHead({ series, table, onToggle, text }: { series: Series[]; table: boolean; onToggle?: () => void; text: ChartText }) {
+function ChartHead({ series, table, onToggle, text }: { series: Series[]; table: boolean; onToggle: () => void; text: ChartText }) {
   return (
     <div className="ui-chart-head">
       {series.length > 1 && !table ? (
@@ -131,12 +131,10 @@ function ChartHead({ series, table, onToggle, text }: { series: Series[]; table:
           ))}
         </ul>
       ) : <span />}
-      {onToggle && (
-        <Button variant="quiet" size="small" onPress={onToggle}>
-          {table ? <ChartColumnBig size={14} aria-hidden /> : <Table2 size={14} aria-hidden />}
-          {table ? text.showChart : text.showTable}
-        </Button>
-      )}
+      <Button variant="quiet" size="small" onPress={onToggle}>
+        {table ? <ChartColumnBig size={14} aria-hidden /> : <Table2 size={14} aria-hidden />}
+        {table ? text.showChart : text.showTable}
+      </Button>
     </div>
   );
 }

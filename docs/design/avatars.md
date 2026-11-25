@@ -39,7 +39,7 @@ in the cases' database.
 Routes: `PUT /v1/me/avatar` (the image as the body; answers the new ETag), `DELETE /v1/me/avatar`,
 `GET /v1/users/{sub}/avatar` (every signed-in user: colleagues see each other; `ETag`, `304` on
 `If-None-Match`, `Cache-Control: private, max-age=3600`; 404 without a picture). Nobody sets or removes someone else's
-picture, an administrator included. `/auth/me`, `/v1/users` and a case's members carry `avatar` (the
+picture, an administrator included; deleting an account removes its picture. `/auth/me`, `/v1/users` and a case's members carry `avatar` (the
 ETag, null without one), so the UI keys the picture's URL by it and a new upload shows at once; a
 picture that fails to load falls back to initials, never a broken image.
 

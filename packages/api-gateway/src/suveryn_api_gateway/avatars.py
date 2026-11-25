@@ -8,7 +8,7 @@ is always that small, normalised image, never the upload. The picture is served 
 signed-in user (colleagues see each other) with an ETag so browsers cache it.
 
 Who may change what: a person changes or removes their own picture; nobody else, an administrator
-included. The picture is personal data: kept until the person removes it, or the account's data is deleted
+included (deleting the account removes it). The picture is personal data: kept until the person removes it, or the account's data is deleted
 (the data lifecycle, suveryn-tracker#31).
 
 Review notes:
