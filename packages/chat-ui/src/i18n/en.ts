@@ -39,7 +39,6 @@ const en = {
   historyUnavailable: "Conversations aren't kept here.",
 
   // problems (the server's reason follows)
-  saveFailed: m("This conversation couldn''t be saved. {why}", "why"),
   openFailed: m("Couldn''t open that conversation. {why}", "why"),
   deleteConversationFailed: m("Couldn''t delete that conversation. {why}", "why"),
   deleteDocumentFailed: m("Couldn''t delete {file}. {why}", "file", "why"),
@@ -948,7 +947,6 @@ const en = {
   backupStale: m("No backup for more than two days. The last one was made {when}.", "when"),
   backupFailed: m("The last backup failed ({when}). {why}", "when", "why"),
   backupCount: m("{n, plural, one {# backup} other {# backups}}", "n"),
-  backupCountOldest: m("{n, plural, one {# backup, the oldest from {oldest}} other {# backups, the oldest from {oldest}}}", "n", "oldest"),
   backupDisk: "Backup disk",
   keyTestTitle: "Recovery key",
   backupLastHeading: "Last backup",

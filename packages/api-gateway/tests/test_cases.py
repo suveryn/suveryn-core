@@ -13,7 +13,8 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from suveryn_api_gateway.app import _delete_case_everywhere, create_app
+from suveryn_api_gateway.app import create_app
+from suveryn_api_gateway.routes.common import delete_case_everywhere
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.cases import (
     AdminCase,
@@ -857,12 +858,12 @@ def test_the_sweep_deletes_a_case_whose_period_has_passed_with_everything_in_it(
         cases.cases[uuid.UUID(x)] = cases.cases[uuid.UUID(x)].model_copy(update={"keep_until": datetime.now(UTC) - timedelta(days=1)})
     assert cases.due_for_deletion() == [uuid.UUID(cid)]  # the kept one isn't
     import asyncio
-    assert asyncio.run(_delete_case_everywhere(c.app, uuid.UUID(cid)))
+    assert asyncio.run(delete_case_everywhere(c.app, uuid.UUID(cid)))
     assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}", headers=alice)) == (404, "case.not_found")
     assert in_case not in docs.docs and DOC in docs.docs
     assert not any(r["case_id"] == uuid.UUID(cid) for r in history.rows.values())
     assert c.get(f"/v1/cases/{keeps}", headers=alice).status_code == 200
-    assert not asyncio.run(_delete_case_everywhere(c.app, uuid.uuid4()))
+    assert not asyncio.run(delete_case_everywhere(c.app, uuid.uuid4()))
 
 
 def test_office_wide_appliance_lets_colleagues_read_but_not_contribute():

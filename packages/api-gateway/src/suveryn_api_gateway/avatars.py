@@ -7,9 +7,8 @@ a square if the browser didn't, resizes to ``SIZE`` pixels and re-encodes as Web
 is always that small, normalised image, never the upload. The picture is served to every
 signed-in user (colleagues see each other) with an ETag so browsers cache it.
 
-Who may change what: a person changes or removes their own picture; an administrator may remove
-anyone's (a picture that shouldn't be there), never set one. The picture is personal data: kept
-until the person removes it, an administrator removes it, or the account's data is deleted
+Who may change what: a person changes or removes their own picture; nobody else, an administrator
+included (deleting the account removes it). The picture is personal data: kept until the person removes it, or the account's data is deleted
 (the data lifecycle, suveryn-tracker#31).
 
 Review notes:

@@ -29,4 +29,4 @@ export { SourceRef } from "./sourceRef";
 export { DataTable, FilterSelect, FilterToggle, Pager, PinToggle, type SortDescriptor, type TableColumn } from "./table";
 export { QrCode } from "./QrCode";
 export { I18nProvider } from "react-aria-components";
-export { BarChart, ColumnChart, type ChartText, type Datum, type Series } from "./charts";
+export { ColumnChart, type ChartText, type Datum, type Series } from "./charts";

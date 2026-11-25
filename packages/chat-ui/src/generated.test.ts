@@ -14,7 +14,6 @@ const written = (readdirSync(SRC, { recursive: true }) as string[])
 // Generated and called by no screen's code, each for its reason. Taken out of here the day one is called.
 const NOT_CALLED: Record<string, string> = {
   getUserPicture: "a picture is loaded by the page itself, as an image's address: the generated one (ui/avatar.tsx)",
-  deleteUserPicture: "no screen removes someone else's picture yet",
   addRunDocuments: "no screen sends a document for a request the run has already had answered yet",
   createUpload: "an upload is sent by XMLHttpRequest, which alone reports how far it is (api.ts, uploadDocument): to the generated address, with the generated body",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",

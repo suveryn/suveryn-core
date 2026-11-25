@@ -1,7 +1,5 @@
 """Avatars (``avatars.py``, docs/design/avatars.md): a person's picture, served to colleagues, set
-and removed by the person, removable by an administrator."""
-
-import logging
+and removed by the person."""
 
 from fastapi import APIRouter, Request, Response
 from suveryn_harness.messages import Problem
@@ -10,9 +8,8 @@ from fastapi.concurrency import run_in_threadpool
 from ..avatars import CONTENT_TYPE, MAX_UPLOAD_BYTES, AvatarStore, NotAnImage
 from ..description import Answer
 from ..problems import refusals
-from .common import admin_or_403, owner_of
+from .common import owner_of
 
-log = logging.getLogger("suveryn.gateway")
 router = APIRouter(tags=["users"])  # the group its operations are in, in the description (description.py)
 
 
@@ -74,13 +71,4 @@ async def set_my_picture(request: Request):
 async def delete_my_picture(request: Request):
     """Remove the caller's picture; their initials are shown again."""
     await run_in_threadpool(avatars_or_503(request).remove, owner_of(request))
-    return Response(status_code=204)
-
-
-@router.delete("/v1/users/{sub}/avatar", status_code=204, responses=refusals())
-async def delete_user_picture(sub: str, request: Request):
-    """Administrators: remove someone's picture (one that shouldn't be there). Never set one."""
-    admin_or_403(request)
-    await run_in_threadpool(avatars_or_503(request).remove, sub)
-    log.info("avatar removed by an administrator")
     return Response(status_code=204)

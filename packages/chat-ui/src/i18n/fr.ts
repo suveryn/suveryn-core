@@ -30,7 +30,6 @@ const fr: Messages = {
   historyFailed: "Les conversations ne peuvent pas être enregistrées pour le moment.",
   historyUnavailable: "Les conversations ne sont pas conservées ici.",
 
-  saveFailed: m("Cette conversation n''a pas pu être enregistrée. {why}"),
   openFailed: m("Impossible d''ouvrir cette conversation. {why}"),
   deleteConversationFailed: m("Impossible de supprimer cette conversation. {why}"),
   deleteDocumentFailed: m("Impossible de supprimer {file}. {why}"),
@@ -906,7 +905,6 @@ const fr: Messages = {
   backupStale: m("Aucune sauvegarde depuis plus de deux jours. La dernière date du {when}."),
   backupFailed: m("La dernière sauvegarde a échoué ({when}). {why}"),
   backupCount: m("{n, plural, one {# sauvegarde} other {# sauvegardes}}"),
-  backupCountOldest: m("{n, plural, one {# sauvegarde, la plus ancienne du {oldest}} other {# sauvegardes, la plus ancienne du {oldest}}}"),
   backupDisk: "Disque de sauvegarde",
   keyTestTitle: "Clé de récupération",
   backupLastHeading: "Dernière sauvegarde",

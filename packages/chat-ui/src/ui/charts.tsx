@@ -1,12 +1,12 @@
 /**
- * Charts (suveryn-tracker#46): columns over time and bars per person or thing, each with up to four
- * stacked series (such as input and output tokens). Drawn in HTML with the brand's chart colours
+ * Charts (suveryn-tracker#46): columns over time, each with up to four stacked series (such as input
+ * and output tokens). Drawn in HTML with the brand's chart colours
  * from ui.css; heights and widths are style properties set through the DOM, which the CSP allows
  * (docs/content-security-policy.md). No chart library: d3-array gives the round axis steps
- * (chartScale.ts), and that is all a bar needs.
+ * (chartScale.ts), and that is all a column needs.
  *
  * For everyone: every chart can be shown as a table; the columns are one Tab stop, and the arrow
- * keys, Home and End move between them, each read out with its values; the bars print their totals.
+ * keys, Home and End move between them, each read out with its values.
  * The legend names the series in stacking order; ochre is light on white, so the legend and the table
  * always come with the chart.
  */
@@ -17,7 +17,7 @@ import { marks, share, step, sum, valueAxis } from "./chartScale";
 
 /** At most four: the brand's chart colours, in order (ui.css, --chart-1 to --chart-4). A fifth becomes "Other". */
 export type Series = { id: string; label: string };
-/** One column or bar: its label, and a value per series, in the order of `series`. */
+/** One column: its label, and a value per series, in the order of `series`. */
 export type Datum = { key: string; label: string; values: number[] };
 
 export type ChartText = {
@@ -113,48 +113,14 @@ export function ColumnChart({ label, series, data, format, tick, text, slots, ev
   );
 }
 
-/** Bars side by side for comparison (per user, per model), longest first, each with its total
- *  printed after it. `withTable={false}` when the screen shows the same numbers in a table of its own. */
-export function BarChart({ label, series, data, format, text, withTable = true }: Common & { withTable?: boolean }) {
-  const [table, setTable] = useState(false);
-  const captionId = useId();
-  const rows = [...data].sort((a, b) => sum(b.values) - sum(a.values));
-  const top = Math.max(0, ...rows.map((d) => sum(d.values)));
-  return (
-    <figure className="ui-chart">
-      <ChartHead series={series} table={table} onToggle={withTable ? () => setTable(!table) : undefined} text={text} />
-      {table ? <DataTable label={label} series={series} data={rows} format={format} text={text} /> : (
-        <ul className="ui-chart-bars" aria-labelledby={captionId}>
-          {rows.map((d) => (
-            <li key={d.key} className="ui-chart-bar-row">
-              <span className="ui-chart-bar-label">{d.label}</span>
-              <span className="ui-chart-bar-track" aria-hidden>
-                <span className="ui-chart-stack" style={{ width: `${share(sum(d.values), top)}%` }}>
-                  {d.values.map((v, s) => v > 0 && (
-                    <span key={s} className="ui-chart-segment" data-series={s} style={{ flexGrow: v }} />
-                  ))}
-                </span>
-              </span>
-              <span className="ui-chart-bar-value" aria-hidden>{format(sum(d.values))}</span>
-              <span className="ui-visually-hidden">{readOut(d, series, format, text, false)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <figcaption id={captionId} className="ui-chart-caption">{label}</figcaption>
-    </figure>
-  );
-}
-
-/** "Tue 14:00: Input tokens 1,200, Output tokens 300, Total 1,500" (the label is left out where it
- *  is already visible). */
-function readOut(d: Datum, series: Series[], format: (n: number) => string, text: ChartText, withLabel = true) {
+/** "Tue 14:00: Input tokens 1,200, Output tokens 300, Total 1,500". */
+function readOut(d: Datum, series: Series[], format: (n: number) => string, text: ChartText) {
   const parts = series.map((s, i) => `${s.label} ${format(d.values[i] ?? 0)}`);
   if (series.length > 1) parts.push(`${text.total} ${format(sum(d.values))}`);
-  return `${withLabel ? `${d.label}: ` : ""}${parts.join(", ")}`;
+  return `${d.label}: ${parts.join(", ")}`;
 }
 
-function ChartHead({ series, table, onToggle, text }: { series: Series[]; table: boolean; onToggle?: () => void; text: ChartText }) {
+function ChartHead({ series, table, onToggle, text }: { series: Series[]; table: boolean; onToggle: () => void; text: ChartText }) {
   return (
     <div className="ui-chart-head">
       {series.length > 1 && !table ? (
@@ -165,12 +131,10 @@ function ChartHead({ series, table, onToggle, text }: { series: Series[]; table:
           ))}
         </ul>
       ) : <span />}
-      {onToggle && (
-        <Button variant="quiet" size="small" onPress={onToggle}>
-          {table ? <ChartColumnBig size={14} aria-hidden /> : <Table2 size={14} aria-hidden />}
-          {table ? text.showChart : text.showTable}
-        </Button>
-      )}
+      <Button variant="quiet" size="small" onPress={onToggle}>
+        {table ? <ChartColumnBig size={14} aria-hidden /> : <Table2 size={14} aria-hidden />}
+        {table ? text.showChart : text.showTable}
+      </Button>
     </div>
   );
 }

@@ -30,7 +30,6 @@ const nl: Messages = {
   historyFailed: "Gesprekken kunnen nu niet worden bewaard.",
   historyUnavailable: "Gesprekken worden hier niet bewaard.",
 
-  saveFailed: m("Dit gesprek kon niet worden bewaard. {why}"),
   openFailed: m("Dat gesprek kon niet worden geopend. {why}"),
   deleteConversationFailed: m("Dat gesprek kon niet worden verwijderd. {why}"),
   deleteDocumentFailed: m("{file} kon niet worden verwijderd. {why}"),
@@ -906,7 +905,6 @@ const nl: Messages = {
   backupStale: m("Al meer dan twee dagen geen back-up. De laatste werd gemaakt op {when}."),
   backupFailed: m("De laatste back-up is mislukt ({when}). {why}"),
   backupCount: m("{n, plural, one {# back-up} other {# back-ups}}"),
-  backupCountOldest: m("{n, plural, one {# back-up, de oudste van {oldest}} other {# back-ups, de oudste van {oldest}}}"),
   backupDisk: "Back-upschijf",
   keyTestTitle: "Herstelsleutel",
   backupLastHeading: "Laatste back-up",
