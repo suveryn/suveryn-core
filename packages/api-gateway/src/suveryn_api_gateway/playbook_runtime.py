@@ -258,7 +258,9 @@ class Runtime:
         passages that best match the facts; the step keeps their names and the thread says so, before
         anything waits on what was found."""
         rid, cid = uuid.UUID(run.id), uuid.UUID(run.case_id)
-        self.store.write_facts(cid, rid, step.id, self.read_rows(playbook, step, facts, self.store.current_versions(rid)))
+        if not self.store.write_facts(cid, rid, step.id, self.read_rows(playbook, step, facts, self.store.current_versions(rid)),
+                                      reading=True):
+            return None  # stopped or cancelled while it read: nothing it read is the case's
         states = dict(run.steps)
         in_part = list(documents or []) if complete is False else []
         states[step.id] = StepState(status="done", at=_now(), in_part=in_part)

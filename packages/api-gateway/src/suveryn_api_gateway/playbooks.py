@@ -646,13 +646,19 @@ class RunStore(TurnStore):
         """Which state of the run's facts this is: the newest version's number (0: none yet)."""
         return self._execute("SELECT coalesce(max(seq), 0) FROM case_facts WHERE run_id = %s", (run_id,)).fetchone()[0]
 
-    def write_facts(self, case_id: uuid.UUID, run_id: uuid.UUID, step_id: str, rows: list[dict], seen: int | None = None) -> None:
+    def write_facts(self, case_id: uuid.UUID, run_id: uuid.UUID, step_id: str, rows: list[dict], seen: int | None = None,
+                    reading: bool = False) -> bool:
         """Append versions. Each row: fact_id, kind, value, status, source (dict), issues, by, replaces (id or None).
         A replaced version becomes ``superseded``. With ``seen`` (a confirmation), nothing is written when the
-        facts have moved since that state: ``StaleFacts``. Compared and written as one, under the store's lock."""
+        facts have moved since that state: ``StaleFacts``. With ``reading`` (what a read found), nothing is written,
+        and False is the answer, when the run is no longer reading: stopped or cancelled meanwhile, its facts
+        already discarded. Compared and written as one, under the store's lock."""
         with self.transaction():
             if seen is not None and self.facts_seq(run_id) != seen:
                 raise StaleFacts
+            if reading and (self._execute("SELECT status FROM playbook_runs WHERE id = %s FOR UPDATE", (run_id,)).fetchone()
+                            or (None,))[0] != "reading":
+                return False
             for row in rows:
                 if row.get("replaces"):
                     self._execute("UPDATE case_facts SET status = 'superseded' WHERE id = %s AND status <> 'superseded'", (row["replaces"],))
@@ -660,6 +666,7 @@ class RunStore(TurnStore):
                               " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                               (uuid.uuid4(), case_id, run_id, step_id, row["fact_id"], row["kind"], row.get("value", "")[:MAX_VALUE],
                                row["status"], json.dumps(row["source"]), json.dumps(row.get("issues", [])), row["by"], row.get("replaces")))
+        return True
 
     def supersede(self, ids: list) -> None:
         """Mark versions superseded without a replacement: a list's "none" once a person adds entries."""

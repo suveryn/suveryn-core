@@ -274,8 +274,20 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
         raise Problem("run.too_many", "too many playbook runs are reading; start this one when one has finished")
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
+    request.app.state.reading[run.id] = task
     task.add_done_callback(request.app.state.running.discard)
+    task.add_done_callback(lambda t: request.app.state.reading.pop(run.id, None) if request.app.state.reading.get(run.id) is t else None)
     task.add_done_callback(lambda _t: slots.give_back(owner))
+
+
+def _stop_reading(app, run_id: str) -> None:
+    """A run stopped or cancelled while it reads: its reading ends at once. The model call is abandoned (llama-server's
+    source stops a request whose connection closed; not yet seen on an appliance), the person's place among the runs
+    reading is given back, and nothing it read is written: the run has ended (``finish_read`` writes only to a run still
+    reading)."""
+    task = app.state.reading.get(run_id)
+    if task is not None and not task.done():
+        task.cancel()
 
 
 async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, filenames: dict[str, str],
@@ -647,6 +659,7 @@ async def stop_run(case_id: str, run_id: str, request: Request):
     rid = uuid.UUID(run.id)
     if not await run_in_threadpool(store.end, rid, "stopped", who(request)[0]):
         raise Problem("run.ended", "This run has already ended.")
+    _stop_reading(request.app, run.id)
     await run_in_threadpool(store.discard_proposed, rid)
     await run_in_threadpool(store.say, run, "playbook", who(request)[0], "", None,
                             {"kind": "stopped"})
@@ -664,6 +677,7 @@ async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request
     rid, username = uuid.UUID(run.id), who(request)[0]
     if not await run_in_threadpool(store.end, rid, "cancelled", username, body.reason):
         raise Problem("run.ended", "This run has already ended.")
+    _stop_reading(request.app, run.id)
     await run_in_threadpool(store.discard_all, rid)
     await run_in_threadpool(store.say, run, "playbook", username, "", None,
                             {"kind": "cancelled", "reason": body.reason})
