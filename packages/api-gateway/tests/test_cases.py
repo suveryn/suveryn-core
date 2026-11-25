@@ -32,9 +32,10 @@ from suveryn_api_gateway.cases import (
 from suveryn_api_gateway.directory import Person
 from suveryn_harness import LlamaServerClient, LLMSettings
 from suveryn_rag.store import Original, Scope
-from conftest import kept
+from conftest import FakeConversations, kept
+from conftest import ask as asked
 from test_auth import SETTINGS, FakeKeycloak
-from test_conversations import FakeConversations, as_user
+from test_conversations import as_user
 from test_documents import DOC, FakeDocuments, llm_transport
 
 ALICE, BOB, CARLA, ADMIN = "alice-sub", "bob-sub", "carla-sub", "admin-sub"
@@ -459,7 +460,7 @@ def test_suveryns_own_output_coming_back_is_no_source_until_a_contributor_says_s
     listed = {d["id"]: d for d in c.get(f"/v1/documents?case={cid}", headers=alice).json()["documents"]}
     assert listed[back]["source"] is False and listed[back]["provenance"]["noticed"]["ref"] == "A-3f9c2e1b"
     ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [back], "case_id": cid}
-    assert c.post("/v1/chat", json=ask, headers=alice).status_code == 404  # not a source yet
+    assert asked(c, ask, alice).status_code == 404  # not a source yet
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents/{back}/source?case={cid}", headers=bob)) == (403, "case.not_allowed")  # a reader can't decide
     assert c.post(f"/v1/documents/{DOC}/source", headers=alice).status_code == 404  # nothing was noticed
     r = c.post(f"/v1/documents/{back}/source?case={cid}", headers=alice)
@@ -532,7 +533,7 @@ def test_a_contributor_saves_an_answer_to_the_case_once_and_may_undo_it(office):
     assert c.get(f"/v1/documents/{did}/content", headers=carla).status_code == 404  # not in her personal space
     assert c.get(f"/v1/documents/{DOC}/content", headers=alice).status_code == 404  # an upload: nothing to rebuild
     ask = {"messages": [{"role": "user", "content": "What is the price?"}], "document_ids": [did], "case_id": cid}
-    assert c.post("/v1/chat", json=ask, headers=bob).status_code == 404  # never a source (cases.md decision 7)
+    assert asked(c, ask, bob).status_code == 404  # never a source (cases.md decision 7)
     assert c.get(f"/v1/cases/{cid}/events", headers=alice).json()[0]["action"] == "answer_saved"
     # the file a document was read from (board G11): a reader opens it, noted in the case's access log
     docs.originals = {did: ("Compromis.pdf", Original("application/pdf", b"%PDF-1.7 test"))}
@@ -592,16 +593,16 @@ def test_ask_about_this_case_only_reads_the_cases_uploaded_documents(office):
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
     docs.docs[generated] = (Scope.case(uuid.UUID(cid)), "generated")
     ask = {"messages": [{"role": "user", "content": "Wat is de koopprijs?"}], "document_ids": [in_case], "case_id": cid}
-    assert c.post("/v1/chat", json=ask, headers=alice).status_code == 200
+    assert asked(c, ask, alice).status_code == 200
     assert docs.seen["case_id"] == uuid.UUID(cid) and docs.seen["owner"] is None
     # a personal document can't be asked about in the case, nor a case document outside it
-    assert c.post("/v1/chat", json={**ask, "document_ids": [DOC]}, headers=alice).status_code == 404
-    assert c.post("/v1/chat", json={**ask, "case_id": None}, headers=alice).status_code == 404
+    assert asked(c, {**ask, "document_ids": [DOC]}, alice).status_code == 404
+    assert asked(c, {**ask, "case_id": None}, alice).status_code == 404
     # sūveryn's own output is never a source (decision 7)
-    assert c.post("/v1/chat", json={**ask, "document_ids": [in_case, generated]}, headers=alice).status_code == 404
+    assert asked(c, {**ask, "document_ids": [in_case, generated]}, alice).status_code == 404
     # and Bob can't ask in Alice's case at all
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/chat", json=ask, headers=bob)) == (404, "case.not_found")
-    assert c.post("/v1/chat", json={**ask, "case_id": "nope"}, headers=alice).status_code == 422
+    assert (lambda r: (r.status_code, r.json()["code"]))(asked(c, ask, bob)) == (404, "case.not_found")
+    assert asked(c, {**ask, "case_id": "nope"}, alice).status_code == 422
 
 
 def test_conversations_are_listed_with_their_case(office):
@@ -906,10 +907,10 @@ def test_the_manager_adds_colleagues_from_the_directory_with_a_role(office):
     pdf = {"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}
     assert (lambda r: (r.status_code, r.json()["code"]))(c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob)) == (403, "case.not_allowed")
     ask = {"messages": [{"role": "user", "content": "Vraag?"}], "document_ids": [in_case], "case_id": cid}
-    assert (lambda r: (r.status_code, r.json()["code"]))(c.post("/v1/chat", json=ask, headers=bob)) == (403, "case.not_allowed")
+    assert (lambda r: (r.status_code, r.json()["code"]))(asked(c, ask, bob)) == (403, "case.not_allowed")
     assert c.put(f"/v1/cases/{cid}/members/{BOB}", json={"role": "contributor"}, headers=alice).json()["role"] == "contributor"
     assert c.post(f"/v1/documents?case={cid}", files=pdf, headers=bob).status_code == 202
-    assert c.post("/v1/chat", json=ask, headers=bob).status_code == 200
+    assert asked(c, ask, bob).status_code == 200
     # a contributor can't change members, and a reader can't see the log
     assert (lambda r: (r.status_code, r.json()["code"]))(c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=bob)) == (403, "case.not_allowed")
     assert (lambda r: (r.status_code, r.json()["code"]))(c.get(f"/v1/cases/{cid}/events", headers=bob)) == (403, "case.manager_or_administrator_only")
@@ -951,8 +952,7 @@ def test_the_access_log_says_who_did_what(office):
     r = c.post(f"/v1/documents?case={cid}", files={"file": ("a.pdf", b"%PDF-1.7", "application/pdf")}, headers=bob)
     in_case = str(uuid.uuid4())
     docs.docs[in_case] = (Scope.case(uuid.UUID(cid)), "uploaded")
-    c.post("/v1/chat", json={"messages": [{"role": "user", "content": "Wat is de koopprijs?"}], "document_ids": [in_case],
-                             "case_id": cid}, headers=bob)
+    asked(c, {"text": "Wat is de koopprijs?", "document_ids": [in_case], "case_id": cid}, bob)
     c.patch(f"/v1/cases/{cid}", json={"access": "restricted", "name": "Verkoop Kerkstraat 12 (deel 2)"}, headers=alice)
     c.delete(f"/v1/documents/{in_case}?case={cid}", headers=alice)
     c.delete(f"/v1/cases/{cid}/members/{BOB}", headers=alice)
@@ -2028,51 +2028,45 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     assert {s for _, _, s in check.seen} == {200, 201, 202, 204, 401, 403, 404, 409, 411, 413, 415, 422, 429, 507}
 
 
-def test_every_answer_of_answers_is_what_the_description_says(office):
-    """The chat UI's code for an answer is generated from the description (suveryn-tracker#249): the answer as JSON
-    and each event of it as a stream, the refusals too, are checked against it and kept for the chat UI's tests."""
+def test_every_answer_as_it_streams_is_what_the_description_says(office):
+    """The chat UI's code for an answer is generated from the description (suveryn-tracker#249): each event of an answer
+    as it streams, the refusals too, are checked against it and kept for the chat UI's tests. An answer is asked in a
+    conversation the server keeps (suveryn-tracker#251): one new conversation per question here."""
     from described import Checked, same_every_run
     from suveryn_api_gateway.ratelimit import RateLimits
     from suveryn_harness import DocumentsUnavailable
 
     c, kc, _, _, docs = office
     check, alice, bob, carla = Checked(c, "answers"), as_user(kc, ALICE), as_user(kc, BOB), as_user(kc, CARLA)
-    tidy, chat = same_every_run(), "/v1/chat"
+    tidy, asking = same_every_run(), "/v1/conversations/{conversation_id}/questions"
+    numbered = iter(range(1, 100))
+    at = lambda: asking.replace("{conversation_id}", f"00000000-0000-4000-8000-0000000001{next(numbered):02d}")  # noqa: E731
     cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
     c.put(f"/v1/cases/{cid}/members/{CARLA}", json={"role": "reader"}, headers=alice)
-    ask = {"messages": [{"role": "user", "content": "Wat is de koopprijs?"}]}
-    assert check("POST", chat, 401, json=ask).json()["code"] == "auth.signed_out"
-    # refused before anything is asked: not a question, not a document id, a model this appliance doesn't have
-    assert "errors" in check("POST", chat, 422, json={"messages": [{"role": "assistant", "content": "x"}]}, headers=alice).json()
-    assert check("POST", chat, 422, json={**ask, "document_ids": ["nope"]}, headers=alice).json()["code"] == "request.invalid"
-    assert check("POST", chat, 422, "/v1/chat", "no_such_model", json={**ask, "model": "nope"}, headers=alice).json()["code"] == "model.not_found"
+    ask = {"text": "Wat is de koopprijs?"}
+    assert check("POST", asking, 401, at(), json=ask).json()["code"] == "auth.signed_out"
+    # refused before anything is asked: not a document id, a model this appliance doesn't have
+    assert check("POST", asking, 422, at(), json={**ask, "document_ids": ["nope"]}, headers=alice).json()["code"] == "request.invalid"
+    assert check("POST", asking, 422, at(), "no_such_model", json={**ask, "model": "nope"}, headers=alice).json()["code"] == "model.not_found"
     # a case the caller doesn't see, a document that isn't the caller's, and a reader, who may read and not ask
-    assert check("POST", chat, 404, json={**ask, "case_id": str(uuid.uuid4())}, headers=alice).json()["code"] == "case.not_found"
-    r = check("POST", chat, 404, keep="no_such_document", json={**ask, "document_ids": [DOC]}, headers=bob)
+    assert check("POST", asking, 404, at(), json={**ask, "case_id": str(uuid.uuid4())}, headers=alice).json()["code"] == "case.not_found"
+    r = check("POST", asking, 404, at(), "no_such_document", json={**ask, "document_ids": [DOC]}, headers=bob)
     assert r.json()["code"] == "answer.document_not_found"
-    assert check("POST", chat, 403, json={**ask, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
+    assert check("POST", asking, 403, at(), json={**ask, "case_id": cid}, headers=carla).json()["code"] == "case.not_allowed"
 
-    def away(*_, **__):
-        raise DocumentsUnavailable("the documents can't be searched")
-    found, docs.retrieve = docs.retrieve, away
-    assert check("POST", chat, 503, json={**ask, "document_ids": [DOC]}, headers=alice).json()["code"] == "document.unavailable"
-    docs.retrieve = found
-
-    plain = check("POST", chat, 200, keep="plain", tidy=tidy, json=ask, headers=alice).json()
-    assert (plain["citations"], plain["calculations"], plain["complete"], plain["finish_reason"]) == ([], [], None, "stop")
-    grounded = check("POST", chat, 200, keep="grounded", tidy=tidy, json={**ask, "document_ids": [DOC]}, headers=alice).json()
-    assert grounded["citations"][0]["source"]["page"] == 2 and grounded["answer"].endswith("[1].") and grounded["complete"] is True
-
-    # the same answer as a stream: what the server does, the passages, the words, then the whole answer
-    stream = check("POST", chat, 200, keep="stream", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True}, headers=alice)
+    # an answer as it streams: what the server does, the passages, the words, then the whole answer
+    stream = check("POST", asking, 200, at(), "stream", tidy=tidy, json={**ask, "document_ids": [DOC]}, headers=alice)
     assert stream.headers["content-type"].startswith("text/event-stream")
     names = [e["event"] for e in check.kept.answers["stream"]["body"]]
     assert names[-1] == "done" and {"status", "sources", "delta", "done"} <= set(names) and names.index("sources") < names.index("delta")
-    assert check.kept.answers["stream"]["body"][-1]["data"]["answer"] == grounded["answer"]
+    done = check.kept.answers["stream"]["body"][-1]["data"]
+    assert done["citations"][0]["source"]["page"] == 2 and done["answer"].endswith("[1].") and done["complete"] is True
 
-    # a stream that can't be completed ends with why, as a code of the registry
-    docs.retrieve = away
-    check("POST", chat, 200, keep="stream_failed", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True}, headers=alice)
+    # one that can't be completed ends with why, as a code of the registry
+    def away(*_, **__):
+        raise DocumentsUnavailable("the documents can't be searched")
+    found, docs.retrieve = docs.retrieve, away
+    check("POST", asking, 200, at(), "stream_failed", tidy=tidy, json={**ask, "document_ids": [DOC]}, headers=alice)
     docs.retrieve = found
     last = check.kept.answers["stream_failed"]["body"][-1]
     assert (last["event"], last["data"]["code"], last["data"]["kind"]) == ("error", "document.unavailable", "unavailable")
@@ -2081,23 +2075,25 @@ def test_every_answer_of_answers_is_what_the_description_says(office):
     kc2 = FakeKeycloak()
     auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc2.handler)))
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
-    limited = create_app(llm, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth, rate_limits=RateLimits(chat=1))
+    limited = create_app(llm, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth, rate_limits=RateLimits(chat=1),
+                         conversations=FakeConversations())
     with TestClient(limited) as c2:
         check2, alice2 = Checked(c2, "answers"), as_user(kc2, ALICE)
         check2.kept = check.kept
-        check2("POST", chat, 200, json=ask, headers=alice2)
-        assert check2("POST", chat, 429, keep="too_many", json=ask, headers=alice2).json()["code"] == "request.too_many"
+        check2("POST", asking, 200, at(), json=ask, headers=alice2)
+        assert check2("POST", asking, 429, at(), "too_many", json=ask, headers=alice2).json()["code"] == "request.too_many"
         check.seen |= check2.seen
     # *Thorough*: the model thinks first, and its reasoning comes as events of its own, never in the answer
     thinks = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text="<think>Article 2 gives the price.</think>The price is EUR 412.500,00 [1]."))
-    with TestClient(create_app(thinks, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth)) as c3:
+    with TestClient(create_app(thinks, documents=FakeDocuments(owner=ALICE), load_documents=False, auth=auth,
+                               conversations=FakeConversations())) as c3:
         check3 = Checked(c3, "answers")
         check3.kept = check.kept
-        check3("POST", chat, 200, keep="stream_thorough", tidy=tidy, json={**ask, "document_ids": [DOC], "stream": True, "thinking": True}, headers=as_user(kc2, ALICE))
+        check3("POST", asking, 200, at(), "stream_thorough", tidy=tidy, json={**ask, "document_ids": [DOC], "thinking": True},
+               headers=as_user(kc2, ALICE))
     thorough = check.kept.answers["stream_thorough"]["body"]
     assert [e["data"]["text"] for e in thorough if e["event"] == "thinking"] == ["Article 2 gives the price."] and thorough[-1]["data"]["reasoning"]
     check.kept.check()
-    assert {status for _, _, status in check.not_seen()} == {500}  # what nobody planned for
 
 
 def test_the_keep_periods_are_one_list():

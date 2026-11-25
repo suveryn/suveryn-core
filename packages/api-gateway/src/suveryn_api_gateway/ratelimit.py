@@ -7,7 +7,7 @@ are generous for people (a notary doesn't ask 20 questions a minute) and stop sc
 What                    Counted per                     Default (per minute)    Variable
 ======================  ==============================  ======================  ===============
 ``/auth/...``           client address                  30                      SUVERYN_RATE_SIGN_IN
-``POST /v1/chat``       signed-in user                  20                      SUVERYN_RATE_CHAT
+a question              signed-in user                  20                      SUVERYN_RATE_CHAT
 ``POST /v1/documents``  signed-in user                  30                      SUVERYN_RATE_UPLOADS
 ======================  ==============================  ======================  ===============
 

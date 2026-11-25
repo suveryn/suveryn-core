@@ -147,14 +147,15 @@ def _default_documents():
     return service
 
 
+QUESTIONS = "/v1/conversations/{conversation_id}/questions"  # the limit on asking, what it is keyed on
 _RUN_PATH = re.compile(r"^/v1/cases/[^/]+/playbooks/([^/]+/runs|runs/[^/]+/answer)$|^/v1/conversations/[^/]+/questions$")
 
 
 def _limit_path(path: str) -> str:
     """The path a per-user limit is keyed on: starting a playbook run, or answering the request its
     read step waits on, is a model call like a question, so it shares the chat limit (review 2026-10-17); so does a
-    question in a saved conversation (suveryn-tracker#251)."""
-    return "/v1/chat" if _RUN_PATH.match(path) else path
+    question in a conversation (suveryn-tracker#251)."""
+    return QUESTIONS if _RUN_PATH.match(path) else path
 
 
 def _connector(factory, settings):
@@ -184,7 +185,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
     cases_settings = case_settings or CaseSettings.from_env()
     limits = rate_limits or RateLimits.from_env()
     sign_in_limit = RateLimiter(limits.sign_in)
-    per_user_limits = {("POST", "/v1/chat"): RateLimiter(limits.chat),
+    per_user_limits = {("POST", QUESTIONS): RateLimiter(limits.chat),
                        ("POST", "/v1/documents"): RateLimiter(limits.uploads)}
 
     @asynccontextmanager
@@ -443,7 +444,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                 return problems.answer("user.picture_too_large", "The picture is larger than 2 MB.", max_mb=AVATAR_MAX_BYTES // (1024 * 1024))
         return await call_next(request)
 
-    for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.chat, routes.documents,
+    for module in (routes.signin, routes.health, routes.cases, routes.playbooks, routes.avatars, routes.documents,
                    routes.conversations, routes.usage, routes.backups, routes.status, routes.users, routes.clock):
         for router in getattr(module, "routers", (module.router,)):  # a module with operations of several groups has a router for each
             app.include_router(router)

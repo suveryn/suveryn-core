@@ -323,15 +323,18 @@ def test_a_failed_answer_is_stored_as_failed_without_its_words(store):
 
 
 @needs_db
-def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(store):
+@pytest.mark.parametrize("words, stop_after", [(0, "status"), (2, "delta")])
+def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(store, words, stop_after):
     """The person pressed *Stop* (or the tab closed): the connection closes, the model stops, and the words so far are
-    stored as a stopped answer, so a reopened conversation shows them as the person saw them. (Starlette's test
-    client never closes a connection early, so the request is made by hand, as test_api.py's stop does.)"""
+    stored as a stopped answer, so a reopened conversation shows them as the person saw them. The gateway notices at
+    once, also before the first word while the model reads, and closes its own connection to llama-server, which stops
+    generating (docs/design/chat-ui.md §5). (Starlette's test client never closes a connection early, so the request
+    is made by hand.)"""
     import anyio
     from test_api import endless_backend
 
     state: dict = {}
-    application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=endless_backend(state, 2)),
+    application = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=endless_backend(state, words)),
                              load_documents=False, auth=Authenticator.disabled(), conversations=store)
     cid = str(uuid.uuid4())
     path = f"/v1/conversations/{cid}/questions"
@@ -350,7 +353,7 @@ def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(stor
         async def send(message):
             if message["type"] == "http.response.body" and message.get("body"):
                 seen.extend(line[7:] for line in message["body"].decode().split("\n") if line.startswith("event: "))
-                if seen.count("delta") >= 2:
+                if stop_after in seen and seen.count("delta") >= (2 if stop_after == "delta" else 0):
                     gone.set()  # the person pressed Stop
 
         scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}, "http_version": "1.1",
@@ -366,7 +369,7 @@ def test_an_answer_stopped_by_closing_the_connection_keeps_what_was_written(stor
             seen = c.portal.call(ask)
         assert "done" not in seen and state.get("closed")
         (_, _, _), (role, text, meta) = stored(store, cid)
-        assert role == "assistant" and meta["outcome"] == "stopped" and text and uuid.UUID(cid) not in routes.ANSWERING
+        assert role == "assistant" and meta["outcome"] == "stopped" and bool(text) == (words > 0) and uuid.UUID(cid) not in routes.ANSWERING
     finally:
         store.delete(uuid.UUID(cid), store.place(uuid.UUID(cid))[0] if store.place(uuid.UUID(cid)) else "")
 

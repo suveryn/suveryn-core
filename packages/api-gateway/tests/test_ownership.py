@@ -6,6 +6,7 @@ document service fails the test if the gateway ever asks it to read another owne
 
 import httpx
 import pytest
+from conftest import ask
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import LOCAL_OWNER, create_app, owner_of
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
@@ -40,12 +41,11 @@ def test_list_shows_only_your_own_documents(setup):
 def test_another_users_document_is_unknown_for_chat_and_delete(setup):
     c, kc, docs = setup
     bob = as_user(kc, BOB)
-    assert c.post("/v1/chat", json=ASK, headers=bob).status_code == 404
-    assert c.post("/v1/chat", json={**ASK, "stream": True}, headers=bob).status_code == 404
+    assert ask(c, ASK, bob).status_code == 404
     assert docs.seen == {}  # the passages were never read
     assert c.delete(f"/v1/documents/{DOC}", headers=bob).status_code == 404
     assert DOC in docs.docs  # still there
-    assert c.post("/v1/chat", json=ASK, headers=as_user(kc, ALICE)).status_code == 200
+    assert ask(c, ASK, as_user(kc, ALICE)).status_code == 200
     assert docs.seen["owner"] == ALICE
 
 

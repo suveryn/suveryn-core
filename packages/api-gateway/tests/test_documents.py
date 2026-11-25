@@ -8,6 +8,7 @@ from datetime import UTC
 
 import httpx
 import pytest
+from conftest import FakeConversations, ask, kept
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
@@ -185,7 +186,7 @@ ASK = {"messages": [{"role": "user", "content": "Wat is de koopprijs?"}], "docum
 def test_grounded_answer_carries_citations_and_prompt_has_question_last():
     docs, captured = FakeDocuments(), []
     with client(docs, captured) as c:
-        r = c.post("/v1/chat", json=ASK)
+        r = ask(c, ASK)
     assert r.status_code == 200
     body = r.json()
     assert body["answer"].endswith("[1].")
@@ -199,17 +200,18 @@ def test_grounded_answer_carries_citations_and_prompt_has_question_last():
 
 def test_follow_up_searches_with_the_question_before_it():
     """"bereken die" names nothing to search for; the earlier question brings its subject along."""
-    docs, captured = FakeDocuments(), []
-    follow_up = {"messages": [{"role": "user", "content": "Wat zijn de schattingsbedragen?"},
-                              {"role": "assistant", "content": "Kavel 1: EUR 412.500,00."},
-                              {"role": "user", "content": "bereken die"}], "document_ids": [DOC]}
+    from suveryn_api_gateway.routes.common import Database
+
+    docs, captured, store, cid = FakeDocuments(), [], FakeConversations(), str(uuid.uuid4())
+    kept(store, cid, "local-dev", [{"role": "user", "text": "Wat zijn de schattingsbedragen?"},
+                                   {"role": "assistant", "text": "Kavel 1: EUR 412.500,00."}])
     with client(docs, captured) as c:
-        assert c.post("/v1/chat", json=follow_up).status_code == 200
+        c.app.state.history = Database("conversation", store=store)
+        assert ask(c, {"text": "bereken die", "document_ids": [DOC], "after": 2}, conversation=cid).status_code == 200
     assert docs.seen["question"] == "Wat zijn de schattingsbedragen?\nbereken die"
     assert captured[-1]["messages"][-1]["content"].endswith("QUESTION: bereken die")  # the model gets the question as asked
 
 
-@pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("answer, shown, missing", [
     # The model cited nothing: the system adds the passage that holds the figures.
     ("Samen [[calc: 412.500,00 + 412.500,00]] EUR.", "412.500,00 + 412.500,00 = 825.000,00 [1] EUR.", []),
@@ -219,36 +221,25 @@ def test_follow_up_searches_with_the_question_before_it():
     ("Samen [[calc: 412.500,00 + 999,00]] EUR.", "412.500,00 + 999,00 = 413.499,00 [1] EUR.", ["999,00"]),
     ("Samen [[calc: 999,00 + 1.000,00]] EUR.", "999,00 + 1.000,00 = 1.999,00 EUR.", ["999,00", "1.000,00"]),
 ])
-def test_calculation_figures_are_cited_by_the_system_when_the_model_did_not(answer, shown, missing, stream):
+def test_calculation_figures_are_cited_by_the_system_when_the_model_did_not(answer, shown, missing):
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=answer))
     with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled())) as c:
-        if stream:
-            with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
-                lines = [ln for ln in r.iter_lines() if ln.startswith("data:")]
-            body = json.loads(lines[-1][5:])  # the done event
-        else:
-            body = c.post("/v1/chat", json=ASK).json()
+        body = ask(c, ASK).json()  # the done event
     assert body["answer"] == "Samen " + shown
     assert body["calculations"][0]["figures_not_in_sources"] == missing
 
 
-@pytest.mark.parametrize("stream", [False, True])
-def test_figures_the_model_worked_out_itself_are_flagged(stream):
+def test_figures_the_model_worked_out_itself_are_flagged():
     answer = "De koopprijs is EUR 412.500 [1]; met kosten 451.000,00 EUR."
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=answer))
     with TestClient(create_app(llm, documents=FakeDocuments(), load_documents=False, auth=Authenticator.disabled())) as c:
-        if stream:
-            with c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
-                body = json.loads([ln for ln in r.iter_lines() if ln.startswith("data:")][-1][5:])
-        else:
-            body = c.post("/v1/chat", json=ASK).json()
+        body = ask(c, ASK).json()
     assert body["unverified_figures"] == ["451.000,00"]  # 412.500 is the passage's 412.500,00
 
 
 def test_grounded_stream_ends_with_done_including_citations():
-    with client(FakeDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
-        blocks = r.read().decode().strip().split("\n\n")
-    events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in blocks]
+    with client(FakeDocuments()) as c:
+        events = [e for e in ask(c, ASK).events if e[0] != "stored"]
     assert [e for e, _ in events] == ["status", "sources", "status", "delta", "done"]
     # the real steps: the documents are searched, then the model reads the passages it was given
     assert events[0][1]["step"] == "searching"
@@ -260,20 +251,19 @@ def test_grounded_stream_ends_with_done_including_citations():
 
 def test_plain_chat_without_documents_is_unsourced():
     with client(FakeDocuments()) as c:
-        r = c.post("/v1/chat", json={"messages": [{"role": "user", "content": "Hallo"}]})
+        r = ask(c, {"text": "Hallo"})
     assert r.json()["citations"] == []
 
 
 def test_grounded_chat_when_documents_unavailable_is_503():
     with client(None) as c:
-        assert c.post("/v1/chat", json=ASK).status_code == 503
-        # streamed too: the ownership check runs before the stream starts, so it's a plain 503
-        assert c.post("/v1/chat", json={**ASK, "stream": True}).status_code == 503
+        # the ownership check runs before the stream starts, so it's a plain 503
+        assert ask(c, ASK).response.status_code == 503
 
 
 def test_bad_document_id_is_422():
     with client(FakeDocuments()) as c:
-        assert c.post("/v1/chat", json={**ASK, "document_ids": ["../etc"]}).status_code == 422
+        assert ask(c, {**ASK, "document_ids": ["../etc"]}).status_code == 422
 
 
 def test_documents_list_and_delete():
@@ -349,26 +339,18 @@ def test_oversized_upload_is_refused_before_its_body_is_read():
     assert r.status_code == 413 and docs.uploads == []
 
 
-def test_last_message_must_be_the_question():
-    with client(FakeDocuments()) as c:
-        r = c.post("/v1/chat", json={"messages": [{"role": "user", "content": "Vraag"},
-                                                  {"role": "assistant", "content": "Antwoord"}]})
-    assert r.status_code == 422
-
-
 class BrokenDocuments(FakeDocuments):
     def retrieve(self, question, document_ids, k, scope):
         raise RuntimeError("De koopprijs bedraagt EUR 412.500,00")  # an error message holding document text
 
 
 def test_unexpected_stream_error_is_generic_and_does_not_echo_content():
-    with client(BrokenDocuments()) as c, c.stream("POST", "/v1/chat", json={**ASK, "stream": True}) as r:
-        body = r.read().decode()
-    assert body.startswith("event: status") and "412.500" not in body
-    last = body.rstrip().split("\n\n")[-1]
-    assert last.startswith("event: error")
+    with client(BrokenDocuments()) as c:
+        r = ask(c, ASK)
+    assert r.events[1][0] == "status" and "412.500" not in str(r.events)
+    assert r.events[-1][0] == "error"
     # nobody planned for it: internal, with a reference the log line has (and nothing of the exception's message)
-    said = json.loads(last.split("data: ", 1)[1])
+    said = r.events[-1][1]
     assert (said["kind"], said["code"]) == ("internal", "system.internal") and re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", said["params"]["ref"])
 
 
@@ -422,8 +404,7 @@ def test_a_thorough_answer_streams_its_reasoning_apart_from_the_answer():
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"),
                             transport=llm_transport(captured, text="<think>Article 2 gives the price.</think>The price is EUR 412.500,00 [1]."))
     with TestClient(create_app(llm, documents=docs, load_documents=False, auth=Authenticator.disabled())) as c:
-        r = c.post("/v1/chat", json={**ASK, "stream": True, "thinking": True})
-    events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in r.text.strip().split("\n\n")]
+        events = [e for e in ask(c, {**ASK, "thinking": True}).events if e[0] != "stored"]
     kinds = [k for k, _ in events]
     assert "thinking" in kinds and kinds.index("thinking") < kinds.index("delta")
     assert [d["text"] for k, d in events if k == "thinking"] == ["Article 2 gives the price."]

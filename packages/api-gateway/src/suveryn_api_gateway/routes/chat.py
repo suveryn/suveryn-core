@@ -1,4 +1,5 @@
-"""``POST /v1/chat``: an answer, plain or grounded in documents, as JSON or streamed (SSE).
+"""An answer as it streams (SSE), plain or grounded in documents: what a question asked in a conversation the server
+keeps answers with (routes/conversations.py, suveryn-tracker#251).
 
 Data handling: request, answer and document text pass through but are not logged here. An
 unexpected error during a streamed answer is reported to the client as a generic ``error`` event
@@ -10,7 +11,7 @@ import uuid
 from contextlib import aclosing
 
 import anyio
-from fastapi import APIRouter, Request
+from fastapi import Request
 from suveryn_harness.messages import Problem, message, unplanned
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
@@ -34,7 +35,6 @@ from suveryn_harness import (
 )
 
 from ..conversations import StoredTurns
-from ..problems import refusals
 from .common import (
     DocumentNotFound,
     docs_or_503,
@@ -46,7 +46,6 @@ from .common import (
 )
 
 log = logging.getLogger("suveryn.gateway")
-router = APIRouter(tags=["answers"])  # the group its operations are in, in the description (description.py)
 
 
 # The events of a streamed answer, by name, each with the shape of its data: the list the stream is described by.
@@ -79,10 +78,7 @@ def events_described(description: dict) -> dict:
     events = ("zero or more `status`, for a grounded answer one `sources`, with `thinking` true and a model that can think zero or "
               "more `thinking`, zero or more `delta`, then one `done` (the whole answer) or one `error`. Closing the connection stops "
               "the answer: the model stops writing.")
-    answered = description["paths"]["/v1/chat"]["post"]["responses"]["200"]
-    answered["description"] = f"The answer. With stream=true, as events: {events}"
-    answered["content"]["text/event-stream"] = {"itemSchema": {"oneOf": one(EVENTS), "title": "One event of the answer stream"}}
-    # A question in a saved conversation is always streamed (suveryn-tracker#251): the same events, and `stored`.
+    # A question is asked in a conversation the server keeps, and always streamed (suveryn-tracker#251).
     asked = description["paths"]["/v1/conversations/{conversation_id}/questions"]["post"]["responses"]["200"]
     asked["description"] = (f"The answer, as events: first one `stored` (the question's number), then {events} Before `done` or `error`, "
                             "one `stored` with the answer's number too. The question and the answer are stored, however it ends.")
@@ -92,9 +88,8 @@ def events_described(description: dict) -> dict:
 
 
 async def checked(req: ChatRequest, request: Request) -> str:
-    """Everything asked of a question before the model reads it, for ``POST /v1/chat`` and a question in a saved
-    conversation (routes/conversations.py): its documents, its model, the caller's right to ask in its case. Notes the
-    question in the case's access log; the caller's id."""
+    """Everything asked of a question before the model reads it (routes/conversations.py): its documents, its model,
+    the caller's right to ask in its case. Notes the question in the case's access log; the caller's id."""
     for d in req.document_ids:
         try:
             uuid.UUID(d)
@@ -122,28 +117,6 @@ async def checked(req: ChatRequest, request: Request) -> str:
         await touch_case(request, scope)
     await log_access(request, scope.case_id, "asked", {"documents": req.document_ids})
     return owner
-
-
-@router.post("/v1/chat", response_model=ChatResponse, responses={200: {"content": {"text/event-stream": {}}}, **refusals(404, 422, 429)})
-async def ask_question(req: ChatRequest, request: Request):
-    """Answer a conversation. With ``document_ids``, ground the answer in those documents.
-
-    Grounded answers cite passages as [n], where [n] is ``citations[n-1]``. Without
-    ``document_ids`` the answer is unsourced (``citations: []``) and must be shown as unverified.
-    """
-    owner = await checked(req, request)
-    chat_service: ChatService = request.app.state.chat
-    if not req.stream:
-        try:
-            return await chat_service.answer(req, owner)
-        except DocumentNotFound as e:
-            raise Problem("answer.document_not_found", "Unknown document.") from e
-        except DocumentsUnavailable as e:
-            raise Problem("document.unavailable", str(e)) from e
-        except BackendError as e:
-            raise Problem("model.unavailable", str(e)) from e
-    return StopOnDisconnect(_stream(chat_service, req, owner), media_type="text/event-stream",
-                            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 class StopOnDisconnect(StreamingResponse):
@@ -214,21 +187,20 @@ def _sse(event: str, payload: BaseModel) -> str:
     return f"event: {event}\ndata: {payload.model_dump_json()}\n\n"
 
 
-async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard: Heard | None = None):
+async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard: Heard):
     """Translate the chat service's events into the gateway's SSE contract.
 
     Event order: zero or more ``status`` events (pipeline steps before the first word: searching,
     loading_model, reading, writing, thinking), for a grounded answer one ``sources`` event (its passages, so a
     stopped answer keeps what its markers point to), in *Thorough* zero or more ``thinking`` events (the
     reasoning, never part of the answer), zero or more ``delta`` events, then exactly one of ``done`` (a complete
-    ``ChatResponse``, the same shape as the JSON answer, with citations) or ``error``. A client
+    ``ChatResponse``, the whole answer with its citations) or ``error``. A client
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
     try:
         async with aclosing(chat_service.answer_stream(req, owner)) as events:
             async for event in events:
-                if heard is not None:
-                    heard.saw(event)
+                heard.saw(event)
                 if isinstance(event, Status):
                     yield _sse("status", StreamStatus(step=event.step, passages=event.passages,
                                                       complete=event.complete, model=event.model))
@@ -247,19 +219,16 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard
         cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
         log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
         failed = message("model.unavailable")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail=what))
     except DocumentsUnavailable as e:
         log.warning("chat stream failed: the documents aren't available (%s)", type(e).__name__)
         failed = message("document.unavailable")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail=str(e)))
     except DocumentNotFound:
         failed = message("answer.document_not_found")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail="unknown document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
         # Nobody planned for it: a reference for the person, and the log line under it. The exception's type and where
@@ -267,6 +236,5 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard
         ref, where = unplanned(e)
         log.error("chat stream failed: internal %s: %s at %s", ref, type(e).__name__, where)
         failed = message("system.internal", ref=ref)
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail="the answer couldn't be completed because of a server error"))

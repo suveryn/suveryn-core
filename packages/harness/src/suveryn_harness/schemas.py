@@ -45,7 +45,9 @@ MAX_SCHEMA_CHARS = 60_000
 
 
 class ChatRequest(BaseModel):
-    """Body of ``POST /v1/chat``.
+    """What the model is asked: a question, the turns before it, and the documents it is answered from. The gateway
+    builds it from a question asked in a conversation and the turns it stored (suveryn-tracker#251), and a playbook
+    from its read step.
 
     Limits are deliberately bounded: ``max_tokens`` up to 8192 keeps one request from occupying
     the GPU for minutes, and ``temperature`` defaults to 0 because notarial answers should be
@@ -55,7 +57,6 @@ class ChatRequest(BaseModel):
     """
 
     messages: list[ChatMessage] = Field(min_length=1, max_length=200)
-    stream: bool = False
     max_tokens: int = Field(default=1024, ge=1, le=8192)
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     # Stored documents to answer from. Empty: a plain, unsourced answer. Set: the answer is grounded

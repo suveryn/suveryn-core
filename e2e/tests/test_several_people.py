@@ -55,13 +55,14 @@ def people(n: int) -> list[dict]:
 
 
 def ask(api: Api, cid: str, documents: list[str], question: str) -> tuple[float, float]:
-    """One streamed question: the seconds until the answer's first words, and until it is whole. Told to wait, the
-    person waits and asks again: that time counts."""
-    body = {"messages": [{"role": "user", "content": question}], "stream": True, "document_ids": documents, "case_id": cid}
+    """One question, asked as the screens ask it, in a conversation of its own the server keeps (suveryn-tracker#251):
+    the seconds until the answer's first words, and until it is whole. Told to wait, the person waits and asks again:
+    that time counts."""
+    body = {"text": question, "document_ids": documents, "case_id": cid}
     started = time.time()
     for _ in range(api.patience):
         first, event = None, None
-        with api.client.stream("POST", "/v1/chat", json=body, headers=api.headers(),
+        with api.client.stream("POST", f"/v1/conversations/{uuid.uuid4()}/questions", json=body, headers=api.headers(),
                                timeout=httpx.Timeout(ANSWER_TIMEOUT_S, connect=20.0)) as r:
             if r.status_code == 429:
                 api.waits += 1

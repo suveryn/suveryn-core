@@ -28,6 +28,7 @@ import re
 import struct
 import sys
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -133,11 +134,13 @@ def main() -> None:
     me = gw.get("/auth/me").json()
     check(me.get("username") == user, "/auth/me names the signed-in user")
 
-    chat = {"messages": [{"role": "user", "content": "Zeg alleen: ok"}], "max_tokens": 5}
-    check(gw.post("/v1/chat", json=chat, headers={"Origin": "http://evil.example"}).status_code == 403,
+    question = {"text": "Zeg alleen: ok"}  # asked in a conversation of its own, then deleted (suveryn-tracker#251)
+    asking = f"/v1/conversations/{uuid.uuid4()}"
+    check(gw.post(f"{asking}/questions", json=question, headers={"Origin": "http://evil.example"}).status_code == 403,
           "POST from another origin refused (403)")
-    check(gw.post("/v1/chat", json=chat, headers={"Origin": a.origin}).status_code == 200,
+    check(gw.post(f"{asking}/questions", json=question, headers={"Origin": a.origin}).status_code == 200,
           "POST from the UI's origin accepted (200)")
+    gw.delete(asking, headers={"Origin": a.origin})
 
     r = gw.post("/auth/logout", headers={"Origin": a.origin})
     check("/protocol/openid-connect/logout" in (r.json().get("logout_url") or ""), "logout returns Keycloak's end-session URL")

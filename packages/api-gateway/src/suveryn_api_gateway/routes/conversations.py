@@ -162,8 +162,7 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
     written, whatever happens to it: written out, failed, or stopped when the connection closes
     (suveryn-tracker#251). A question follows an answer (``after``, once there is one), and the model reads the
     stored turns on the way to it; ``again`` (*Regenerate*) gives a stored question another answer, beside the earlier
-    ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as ``POST /v1/chat`` streams (its
-    events). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
+    ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as a stream of events (routes/chat.py). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
     show with it that isn't the caller's to see: 404; while an answer is being written in it, a question without the
     answer it follows, or an ``after`` or ``again`` that isn't an answer or a question of it: 409."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)
@@ -253,7 +252,7 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
             raise Problem("request.conflict", "Say which answer the question follows.")
         source = body
     case = (str(place[1]) if place[1] is not None else None) if place is not None else body.case_id
-    asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], stream=True, document_ids=source.document_ids,
+    asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], document_ids=source.document_ids,
                         case_id=case, model=source.model, thinking=source.thinking, max_tokens=ANSWER_TOKENS)
     owner = await checked(asked, request)
     scope = Scope.case(uuid.UUID(case)) if case else Scope.personal(owner)

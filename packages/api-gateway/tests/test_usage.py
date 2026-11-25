@@ -5,6 +5,7 @@ the end run against a real PostgreSQL and are skipped unless SUVERYN_TEST_DATABA
 """
 
 import os
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from urllib.parse import parse_qs, urlsplit
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
+from conftest import ask
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import ADMIN_ROLE, create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
@@ -95,9 +97,8 @@ def as_user(kc: FakeKeycloak, sub: str, admin: bool = False) -> dict:
 
 def test_every_question_is_counted_for_whoever_asked_it(setup):
     c, kc, store = setup
-    assert c.post("/v1/chat", json=CHAT, headers=as_user(kc, ALICE)).status_code == 200
-    with c.stream("POST", "/v1/chat", json={**CHAT, "stream": True}, headers=as_user(kc, BOB)) as r:
-        list(r.iter_lines())
+    assert ask(c, CHAT, as_user(kc, ALICE)).status_code == 200
+    ask(c, CHAT, as_user(kc, BOB))
     assert [(r.user, r.kind, r.total_tokens) for r in store.records] == [(ALICE, "chat", 1285), (BOB, "chat", 1285)]
     assert set(store.users) == {ALICE, BOB}  # names kept for the administrator's table
 
@@ -150,12 +151,15 @@ def test_range_validation(setup):
     assert c.get("/v1/usage", params={"start": "2016-01-01T00:00:00Z"}, headers=alice).status_code == 422  # over five years
 
 
-def test_without_a_database_usage_is_unavailable_but_answers_work():
+def test_without_a_database_usage_is_unavailable_and_nothing_is_asked():
+    """A question is always asked in a conversation the server keeps (suveryn-tracker#251): without the database,
+    nothing is asked, and it says why."""
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
     with TestClient(create_app(llm, load_documents=False, auth=Authenticator.disabled())) as c:
         assert c.get("/v1/usage").status_code == 503
         assert c.get("/health").json()["usage"] == {"status": "unavailable", "detail": None}
-        assert c.post("/v1/chat", json=CHAT).status_code == 200
+        r = c.post(f"/v1/conversations/{uuid.uuid4()}/questions", json={"text": "Vraag"})  # not ``ask``: it brings a store
+        assert (r.status_code, r.json()["code"]) == (503, "conversation.unavailable")
 
 
 def test_buckets_cost_and_ranges():
@@ -414,7 +418,7 @@ def test_every_answer_of_usage_is_what_the_description_says(setup):
     for method, path, sent in (("GET", "/v1/usage", {}), ("GET", "/v1/admin/usage", {}), ("GET", "/v1/admin/usage/rates", {}),
                                ("PUT", "/v1/admin/usage/rates", {"json": {"input_per_million": 1, "output_per_million": 1}})):
         assert check(method, path, 401, **sent).json()["code"] == "auth.signed_out"
-    assert c.post("/v1/chat", json=CHAT, headers=user).status_code == 200  # something to report
+    assert ask(c, CHAT, user).status_code == 200  # something to report
     assert check("GET", "/v1/usage", 200, "/v1/usage" + week, "mine", headers=user).json()["totals"]["requests"] == 1
     check("GET", "/v1/usage", 200, "/v1/usage?start=2026-11-02T00:00:00Z", headers=user)  # to now
     assert check("GET", "/v1/usage", 422, "/v1/usage?start=2026-11-09T00:00:00Z&end=2026-11-02T00:00:00Z", "range_refused",

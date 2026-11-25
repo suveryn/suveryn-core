@@ -1,11 +1,11 @@
 /** Who is signed in, signing out, and an answer as a stream go through code generated from the gateway's description
  *  (suveryn-tracker#249). The stream keeps its own reader (the generated call reads an answer whole): to the
  *  generated address, with the generated body and events. Tested on the gateway's real answers and events. */
-import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import answers from "../../api-gateway/tests/answers_answers.json";
 import auth from "../../api-gateway/tests/auth_answers.json";
-import { ANSWER_EVENTS, askInConversation, getMe, HttpError, signOut, StreamFailure, type AnswerHandlers, type Citation, type StreamStatus } from "./api";
+import { ANSWER_EVENTS, askInConversation, CONVERSATION_EVENTS, getMe, HttpError, signOut, StreamFailure, type AnswerHandlers, type ChatResponse,
+  type Citation, type StreamStatus } from "./api";
 import { messageText } from "./lib/messages";
 import { t } from "./i18n";
 import { eventStream, gatewayAnswers } from "./test/gateway";
@@ -41,8 +41,7 @@ describe("who is signed in", () => {
 });
 
 describe("an answer as a stream", () => {
-  // read by the one reader of every answer (``readAnswer``), on the gateway's real events: the same in a conversation
-  // (asked there, numbered by its ``stored`` events: api.conversations.test.ts) as through /v1/chat, where they were kept
+  // read by the one reader of every answer (``readAnswer``), on the gateway's real events, kept as it streams them
   const ID = "00000000-0000-4000-8000-0000000000a1";
   const QUESTION = { text: "Wat is de koopprijs?", document_ids: ["d1"] };
   const ask = (h: Partial<AnswerHandlers> = {}) => askInConversation(ID, QUESTION, { onDelta: () => {}, ...h });
@@ -52,7 +51,7 @@ describe("an answer as a stream", () => {
     const [steps, words, sources]: [StreamStatus["step"][], string[], Citation[][]] = [[], [], []];
     const answer = await ask({ onDelta: (text) => words.push(text), onStatus: (status) => steps.push(status.step),
                                onSources: (citations) => sources.push(citations) });
-    const done = answers.stream.body.at(-1)!.data as typeof answers.grounded.body;
+    const done = answers.stream.body.at(-1)!.data as unknown as ChatResponse;
     expect(answer).toEqual(done);
     expect([words.join(""), steps[0], sources.length, sources[0][0].source?.page]).toEqual([done.answer, "searching", 1, 2]);
     expect(sent).toEqual([asked("POST", `/v1/conversations/${ID}/questions`, QUESTION)]);
@@ -88,10 +87,9 @@ describe("an answer as a stream", () => {
     }
   });
 
-  it("has the events the gateway's description names, each read as its own shape", () => {
-    const described = JSON.parse(readFileSync(new URL("../../api-gateway/openapi.json", import.meta.url), "utf8"));
-    const one = described.paths["/v1/chat"].post.responses["200"].content["text/event-stream"].itemSchema.oneOf as { properties: { event: { const: string } } }[];
-    expect(one.map((event) => event.properties.event.const)).toEqual(ANSWER_EVENTS);
-    expect(answers.stream.body.map((e) => e.event).filter((name) => !ANSWER_EVENTS.includes(name))).toEqual([]);
+  it("has only the events the gateway's description names (api.conversations.test.ts holds the list to it)", () => {
+    const said = [answers.stream, answers.stream_thorough, answers.stream_failed].flatMap((a) => a.body.map((e) => e.event));
+    expect(said.filter((name) => !CONVERSATION_EVENTS.includes(name))).toEqual([]);
+    expect(ANSWER_EVENTS.every((name) => CONVERSATION_EVENTS.includes(name))).toBe(true);
   });
 });

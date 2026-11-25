@@ -8,8 +8,9 @@ from suveryn_api_gateway import description
 from suveryn_api_gateway.cases import EventDetail
 from suveryn_api_gateway.playbooks import TurnMeta
 
-# The groups (the convention's thirteen). A new group is added here on purpose, in the change that adds it.
-GROUPS = {"auth", "answers", "models", "cases", "settings", "playbooks", "documents", "conversations", "users", "usage",
+# The groups (the convention's twelve, since a question is asked in a conversation: suveryn-tracker#251). A new group
+# is added here on purpose, in the change that adds it.
+GROUPS = {"auth", "models", "cases", "settings", "playbooks", "documents", "conversations", "users", "usage",
           "backups", "clock", "status"}
 READS = ("get_", "list_", "preview_")
 
@@ -83,7 +84,7 @@ def test_every_route_of_the_gateway_is_in_the_description():
 # The groups whose operations are described strictly (suveryn-tracker#159, one area at a time): what they answer,
 # and every refusal. The chat UI's code for them is generated (packages/chat-ui/src/generated). A group is added
 # here in the change that moves it.
-STRICT = {"answers", "auth", "backups", "cases", "clock", "conversations", "documents", "models", "playbooks", "settings", "status", "usage", "users"}
+STRICT = {"auth", "backups", "cases", "clock", "conversations", "documents", "models", "playbooks", "settings", "status", "usage", "users"}
 PROBLEM = {"$ref": "#/components/schemas/ProblemDetails"}
 
 
@@ -97,7 +98,6 @@ STATES = {("GET", "/health", 503)}
 # that file says it: its code, its status where that isn't the code's own, and the file.
 # An upload must say its size, and keep to it.
 BEFORE = {("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
-          ("POST", "/v1/chat"): [("request.too_many", None, "app.py")],  # the limit on asking, per person
           ("POST", "/v1/conversations/{conversation_id}/questions"): [("request.too_many", None, "app.py")],
           ("GET", "/auth/me"): [("auth.unavailable", None, "app.py")]}  # the sign-in service can't be asked (``AuthUnavailable``)
 # An upload is refused by document handling itself (suveryn-rag, ``UploadRejected``: not a file it reads, empty, too

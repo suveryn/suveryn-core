@@ -6,6 +6,7 @@ Against a fake llama-server in router mode (several models, one loaded) and in s
 import json
 
 import httpx
+from conftest import ask
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
@@ -52,17 +53,17 @@ def test_router_lists_installed_models_with_load_state_and_default():
 def test_chosen_model_is_sent_and_reported():
     sent = []
     with client(True, sent) as c:
-        r = c.post("/v1/chat", json={**CHAT, "model": MISTRAL})
+        r = ask(c, {**CHAT, "model": MISTRAL})
         assert r.status_code == 200 and r.json()["model"] == MISTRAL and sent[-1]["model"] == MISTRAL
-        r = c.post("/v1/chat", json=CHAT)  # no choice: the appliance default
+        r = ask(c, CHAT)  # no choice: the appliance default
         assert r.json()["model"] == QWEN and sent[-1]["model"] == QWEN
 
 
 def test_unknown_model_is_refused():
     sent = []
     with client(True, sent) as c:
-        assert c.post("/v1/chat", json={**CHAT, "model": "gpt-9"}).status_code == 422
-        assert c.post("/v1/chat", json={**CHAT, "model": "../etc/passwd"}).status_code == 422  # pattern
+        assert ask(c, {**CHAT, "model": "gpt-9"}).status_code == 422
+        assert ask(c, {**CHAT, "model": "../etc/passwd"}).status_code == 422  # pattern
     assert sent == []
 
 
@@ -70,7 +71,7 @@ def test_single_model_server_lists_its_one_model():
     sent = []
     with client(False, sent) as c:
         assert c.get("/v1/models").json() == [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf", "loaded": True, "default": True, "thinks": True}]
-        assert c.post("/v1/chat", json=CHAT).json()["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
+        assert ask(c, CHAT).json()["model"] == "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
 
 def test_health_names_the_default_model_in_router_mode():
@@ -80,9 +81,8 @@ def test_health_names_the_default_model_in_router_mode():
 
 
 def stream_events(c: TestClient, body: dict) -> list[tuple[str, dict]]:
-    with c.stream("POST", "/v1/chat", json={**body, "stream": True}) as r:
-        blocks = r.read().decode().strip().split("\n\n")
-    return [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:])) for b in blocks]
+    """The answer's events, without the numbers the conversation gives its turns."""
+    return [e for e in ask(c, body).events if e[0] != "stored"]
 
 
 def test_stream_says_when_the_chosen_model_has_to_load_first():

@@ -19,6 +19,7 @@ import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
+from conftest import ask
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import (
@@ -144,12 +145,12 @@ def sign_in(c: TestClient, kc: FakeKeycloak, return_to: str = "/", **token_overr
     return c.get("/auth/callback", params={"code": code, "state": q["state"]}, follow_redirects=False)
 
 
-CHAT = {"messages": [{"role": "user", "content": "Vraag"}]}
+CHAT = {"text": "Vraag"}
 
 
 def test_api_needs_sign_in_and_health_stays_public(client):
     assert client.get("/v1/documents").status_code == 401
-    assert client.post("/v1/chat", json=CHAT).status_code == 401
+    assert ask(client, CHAT).status_code == 401
     health = client.get("/health").json()
     assert health["auth"] == {"status": "ready", "detail": None}
     assert client.get("/auth/me").status_code == 401
@@ -284,9 +285,9 @@ def test_bearer_tokens_are_refused_unless_switched_on(kc, monkeypatch, caplog):
 
 def test_changes_need_the_uis_own_origin(client, kc):
     sign_in(client, kc)
-    assert client.post("/v1/chat", json=CHAT, headers={"Origin": "http://evil.example"}).status_code == 403
-    assert client.post("/v1/chat", json=CHAT).status_code == 403  # no Origin header with a cookie
-    assert client.post("/v1/chat", json=CHAT, headers={"Origin": PUBLIC}).status_code == 200
+    assert ask(client, CHAT, {"Origin": "http://evil.example"}).status_code == 403
+    assert ask(client, CHAT).status_code == 403  # no Origin header with a cookie
+    assert ask(client, CHAT, {"Origin": PUBLIC}).status_code == 200
     assert client.get("/v1/documents", headers={"Origin": "http://evil.example"}).status_code == 200  # reads: SameSite
 
 
@@ -483,10 +484,10 @@ def test_questions_and_uploads_are_rate_limited_per_user(kc):
     alice = {"Authorization": f"Bearer {kc.tokens(over={'sub': 'alice'})['access_token']}"}
     bob = {"Authorization": f"Bearer {kc.tokens(over={'sub': 'bob'})['access_token']}"}
     with TestClient(app) as c:
-        assert [c.post("/v1/chat", json=CHAT, headers=alice).status_code for _ in range(3)] == [200, 200, 429]
-        assert c.post("/v1/chat", json=CHAT, headers=bob).status_code == 200  # per user
+        assert [ask(c, CHAT, alice).status_code for _ in range(3)] == [200, 200, 429]
+        assert ask(c, CHAT, bob).status_code == 200  # per user
         assert c.get("/v1/documents", headers=alice).status_code == 200  # reading isn't limited
-        assert c.post("/v1/chat", json=CHAT).status_code == 401  # not signed in: 401, not counted
+        assert ask(c, CHAT).status_code == 401  # not signed in: 401, not counted
         pdf = {"file": ("a.pdf", b"%PDF-1.4", "application/pdf")}
         assert [c.post("/v1/documents", files=pdf, headers=alice).status_code for _ in range(2)] == [202, 429]
 
