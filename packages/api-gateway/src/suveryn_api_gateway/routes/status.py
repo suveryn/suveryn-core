@@ -21,6 +21,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
+from suveryn_harness.messages import unplanned
 
 from ..clock import WARN_MS
 from ..description import Answer
@@ -151,7 +152,8 @@ class StatusMonitor:
                     if not c.ok and c.since == status.checked_at:
                         log.warning("status: %s stopped working", c.id)
             except Exception as e:  # noqa: BLE001 - the monitor must outlive any one failure
-                log.error("status check: %s", type(e).__name__)
+                ref, where = unplanned(e)
+                log.error("status check: internal %s: %s at %s", ref, type(e).__name__, where)
             await asyncio.sleep(INTERVAL_S)
 
 

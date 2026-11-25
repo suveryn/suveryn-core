@@ -284,7 +284,28 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
     asked twice before the answer counts as unreadable). Errors are stored by kind only. When the
     answer is in, the run walks on (to the ask, or the checkpoint), and through any read that follows
     straight after, one after the other in this task (the care mandate's branches: the incapacity, the
-    person, the gifts; the pod round's playbook runs found a second read failing the run)."""
+    person, the gifts; the pod round's playbook runs found a second read failing the run). Whatever fails in
+    this task that nobody planned for ends the run at once, with a reference: never a run left reading until the
+    sweep says it was interrupted by a restart (the code review of 25 November)."""
+    try:
+        await _reading(app, runtime, store, run, pb, step, filenames, owner, reference)
+    except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
+        await _failed_unplanned(store, uuid.UUID(run.id), e)
+
+
+async def _failed_unplanned(store: RunStore, run_id: uuid.UUID, e: Exception) -> None:
+    """A run's failure nobody planned for: a reference for the person, and the log line under it (type and place,
+    never the message). Only a run still reading is failed: one stopped, cancelled or walked on stays as it is."""
+    ref, where = unplanned(e)
+    log.error("playbook run failed: internal %s: %s at %s", ref, type(e).__name__, where)
+    try:
+        await run_in_threadpool(store.fail, run_id, message("system.internal", ref=ref))
+    except Exception as again:  # noqa: BLE001 - the store is down too; the sweep ends the run later
+        log.error("playbook run %s: its failure couldn't be stored (%s); the sweep ends it", ref, type(again).__name__)
+
+
+async def _reading(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, filenames: dict[str, str],
+                   owner: str, reference: str) -> None:
     run_id = uuid.UUID(run.id)
     while True:
         step = await _read_one(app, runtime, store, run, pb, step, filenames, owner, reference)
@@ -316,21 +337,11 @@ async def _read_one(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbo
         await run_in_threadpool(store.fail, run_id, message({BackendError: "model.unavailable", DocumentsUnavailable: "document.unavailable",
                                                              DocumentNotFound: "run.no_document", Unreadable: "run.answer_unreadable"}[type(e)]))
         return None
-    except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
-        # nobody planned for it: a reference for the person, and the log line under it (type and place, never the message)
-        ref, where = unplanned(e)
-        log.error("playbook run failed: internal %s: %s at %s", ref, type(e).__name__, where)
-        await run_in_threadpool(store.fail, run_id, message("system.internal", ref=ref))
-        return None
     fresh = await run_in_threadpool(runtime.finish_read, run, pb, step, facts, response.model, response.instruction_like_sources,
                                     response.complete, list(filenames.values()))
     if fresh is None:
         return None  # stopped or cancelled while reading
-    try:
-        return await run_in_threadpool(runtime.advance, fresh, pb, reference)
-    except Exception as e:  # noqa: BLE001
-        log.error("playbook run could not go on: %s", type(e).__name__)
-        return None
+    return await run_in_threadpool(runtime.advance, fresh, pb, reference)
 
 
 async def _live_run(request: Request, case_id: str, run_id: str, action: str) -> tuple[Case, RunStore, Run, Playbook]:
@@ -660,6 +671,7 @@ async def cancel_run(case_id: str, run_id: str, body: CancelIn, request: Request
         try:
             await run_in_threadpool(docs_or_503(request).withdraw, run.result_document_id, Scope.case(uuid.UUID(case.id)), username, body.reason)
         except Exception as e:  # noqa: BLE001 - the cancel stands; the mark can be set again
-            log.error("playbook result not marked withdrawn: %s", type(e).__name__)
+            ref, where = unplanned(e)
+            log.error("playbook result not marked withdrawn: internal %s: %s at %s", ref, type(e).__name__, where)
     await log_access(request, uuid.UUID(case.id), "playbook_cancelled", {"playbook": pb.id, "run": run.id})
     return await run_in_threadpool(store.get, rid, uuid.UUID(case.id))

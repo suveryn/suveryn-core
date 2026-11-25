@@ -65,6 +65,7 @@ from suveryn_harness import (
     Meaning,
     UsageRecord,
 )
+from suveryn_harness.messages import unplanned
 
 from . import description, problems, routes
 from .auth import Authenticator, AuthError, AuthSettings, AuthUnavailable
@@ -293,7 +294,8 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
                     if usage_store is not None:
                         await run_in_threadpool(usage_store.purge)
                 except Exception as e:  # noqa: BLE001 - the sweep must outlive any one failure
-                    log.error("sweep: %s", type(e).__name__)
+                    ref, where = unplanned(e)
+                    log.error("sweep: internal %s: %s at %s", ref, type(e).__name__, where)
                 await asyncio.sleep(SWEEP_RETRY_S if waiting else SWEEP_INTERVAL_S)
 
         app.state.sweep = (asyncio.create_task(sweep_due_cases())
