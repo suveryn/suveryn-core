@@ -107,6 +107,17 @@ describe("an administrator sets the appliance's clock", () => {
     const e = await failure(setApplianceClock(measured));
     expect(e).toBeInstanceOf(TypeError);
     expect(e.message).toBe(t().serverUnreachable);
+    // an answer whose connection breaks before it is whole: the same
+    const breaking = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode("{\"now")); }, pull(c) { c.error(new TypeError("network error")); } });
+    gatewayAnswers(new Response(breaking, { status: 200, headers: { "Content-Type": "application/json" } }));
+    const cut = await failure(setApplianceClock(measured));
+    expect([cut instanceof TypeError, cut.message]).toEqual([true, t().serverUnreachable]);
+  });
+
+  it("a request stopped before the gateway answers stays a stop, never a server that can't be reached", async () => {
+    const stopped = new DOMException("The operation was aborted.", "AbortError");
+    gatewayAnswers(stopped);
+    expect(await failure(setApplianceClock(measured))).toBe(stopped);
   });
 });
 

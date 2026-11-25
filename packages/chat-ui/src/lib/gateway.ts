@@ -7,16 +7,21 @@ import { t } from "../i18n";
 
 /** The gateway couldn't be reached, or the connection broke while its answer came: in the reader's language, never
  *  the browser's own English ("Failed to fetch", "NetworkError when attempting to fetch resource", "Load failed").
- *  A `TypeError`, as the browser's own is, so what tells a broken connection from a refusal still does (the code
- *  review of 25 November, suveryn-tracker#262). */
+ *  A `TypeError`, as the browser's own is, so what tells a broken connection from a refusal still does. */
 export class Unreachable extends TypeError {}
+
+/** What a broken connection threw (the browser's `TypeError`), as `Unreachable` with `words`; anything else, a stop
+ *  (`AbortError`) among them, as it was. */
+export function unreachable(e: unknown, words: string): unknown {
+  return e instanceof TypeError && !(e instanceof Unreachable) ? new Unreachable(words) : e;
+}
 
 /** `fetch`, its failure to connect said as `serverUnreachable`. */
 export async function reach(url: string, options: RequestInit): Promise<Response> {
   try {
     return await fetch(url, options);
   } catch (e) {
-    throw e instanceof TypeError ? new Unreachable(t().serverUnreachable) : e;  // a stop (AbortError) stays itself
+    throw unreachable(e, t().serverUnreachable);
   }
 }
 
@@ -26,7 +31,12 @@ export type Answer = { data: unknown; status: number; headers: Headers; empty?: 
 
 export async function gatewayFetch<T>(url: string, options: RequestInit): Promise<T> {
   const response = await reach(url, options);
-  const text = await response.text();
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (e) {  // the connection broke while the answer came
+    throw unreachable(e, t().serverUnreachable);
+  }
   let data: unknown;
   if (text && /^application\/([\w.-]+\+)?json\b/i.test(response.headers.get("Content-Type") ?? "")) {
     try { data = JSON.parse(text); } catch { /* cut short: not an answer */ }

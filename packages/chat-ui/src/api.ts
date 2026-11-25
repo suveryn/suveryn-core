@@ -10,7 +10,7 @@ import { messageText, problemOf, type Message } from "./lib/messages";
 import type { Turn } from "./types";
 import type { SavedAnswer } from "./lib/saved";
 import * as gateway from "./generated/gateway";
-import { reach, Unreachable, type Answer } from "./lib/gateway";
+import { reach, unreachable, type Answer } from "./lib/gateway";
 
 /** A shape of the gateway's answer as a saved turn keeps it: a turn saved before the gateway said `Lacking` doesn't
  *  have it. The screens read a turn's passages, calculations and marks through these. */
@@ -264,7 +264,7 @@ async function readAnswer(r: Response, h: AnswerHandlers): Promise<ChatResponse>
     try {
       read = await reader.read();
     } catch (e) {  // the connection broke while the answer came
-      throw e instanceof TypeError ? new Unreachable(t().streamCutOff) : e;
+      throw unreachable(e, t().streamCutOff);
     }
     if (read.done) break;
     parser.feed(read.value);
