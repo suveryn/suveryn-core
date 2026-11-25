@@ -8,13 +8,15 @@ from datetime import UTC
 
 import httpx
 import pytest
-from conftest import FakeConversations, ask, kept
 from fastapi.testclient import TestClient
+from model_server import streamed
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
 from suveryn_harness import Citation, LlamaServerClient, LLMSettings, SourceRef
 from suveryn_rag.service import Job
 from suveryn_rag.store import Scope
+
+from conftest import FakeConversations, ask, kept
 
 DOC = str(uuid.uuid4())
 UNSUPPORTED = {"kind": "refused", "code": "upload.unsupported", "params": {}}  # a file left out of a .zip, and why
@@ -164,14 +166,7 @@ def llm_transport(captured, text="De koopprijs is EUR 412.500,00 [1].", usage: d
             return httpx.Response(404)
         body = json.loads(request.content)
         captured.append(body)
-        if body["stream"]:
-            sse = "".join(f"data: {json.dumps(c)}\n\n" for c in [
-                {"choices": [{"delta": {"content": text}, "finish_reason": None}]},
-                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
-                *([{"choices": [], "usage": usage}] if usage else [])]) + "data: [DONE]\n\n"
-            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": text}, "finish_reason": "stop"}],
-                                         **({"usage": usage} if usage else {})})
+        return streamed(text, usage)
     return httpx.MockTransport(handler)
 
 
@@ -491,7 +486,6 @@ def test_a_stored_warning_is_listed_as_kept_and_one_in_an_older_shape_as_somethi
     from datetime import datetime
 
     from suveryn_api_gateway.routes.documents import StoredDocument, _listed
-
     from suveryn_rag.integrity import IntegrityWarning
 
     kept = IntegrityWarning(3, "document.text_recovered", "40 characters recovered").message()  # as the rag stores one

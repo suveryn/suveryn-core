@@ -22,15 +22,12 @@ def server():
         if request.url.path == "/models":
             return httpx.Response(404)
         body = json.loads(request.content)
-        if body["stream"]:
-            assert body["stream_options"] == {"include_usage": True}
-            events = [{"choices": [{"delta": {"content": "Antwoord"}, "finish_reason": None}]},
-                      {"choices": [{"delta": {}, "finish_reason": "stop"}]},
-                      {"choices": [], "usage": USAGE}]
-            sse = "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
-            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": "Antwoord"}, "finish_reason": "stop"}],
-                                         "usage": USAGE})
+        assert body["stream"] and body["stream_options"] == {"include_usage": True}  # every call streams (#270)
+        events = [{"choices": [{"delta": {"content": "Antwoord"}, "finish_reason": None}]},
+                  {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+                  {"choices": [], "usage": USAGE}]
+        sse = "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
+        return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
     return httpx.MockTransport(handler)
 
 

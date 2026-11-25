@@ -18,6 +18,7 @@ import json
 import logging
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Literal
@@ -174,14 +175,14 @@ class LlamaServerClient:
         """Whether this request's answer is thought first: asked for, and the model can."""
         return req.thinking and can_think(req.model or self.settings.default_model)
 
-    def _payload(self, req: ChatRequest, stream: bool) -> dict:
+    def _payload(self, req: ChatRequest) -> dict:
         thinking = self.thinks(req)
         payload = {
             "messages": [{**m.model_dump(), "content": neutralise(m.content)} for m in req.messages],
             # the reasoning comes on top of the answer's own length (thinking.THINKING_TOKENS)
             "max_tokens": req.max_tokens + (THINKING_TOKENS if thinking else 0),
             "temperature": req.temperature,
-            "stream": stream,
+            "stream": True,  # always: a call stopped or broken off still has its counts (``stream``)
             # Router mode needs a model per request; a single-model server ignores the field.
             "model": req.model or self.settings.default_model,
             # Reuse the cached prompt prefix across turns: a follow-up question on the same
@@ -198,11 +199,10 @@ class LlamaServerClient:
             # compiled to a grammar per request): the answer has the schema's shape by construction. A
             # playbook's read step uses it; a chat answer never does.
             payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "answer", "strict": True, "schema": req.json_schema}}
-        if stream:
-            payload["stream_options"] = {"include_usage": True}
-            # llama-server: token counts on every chunk, so an answer stopped halfway still counts
-            # what it used (``stream``); other servers ignore the field.
-            payload["timings_per_token"] = True
+        payload["stream_options"] = {"include_usage": True}
+        # llama-server: token counts on every chunk, so an answer stopped halfway still counts
+        # what it used (``stream``); other servers ignore the field.
+        payload["timings_per_token"] = True
         return payload
 
     async def _record(self, user: str | None, kind: Kind, model: str | None, usage: Usage | None) -> None:
@@ -217,35 +217,26 @@ class LlamaServerClient:
             log.error("token usage not recorded: %s", type(e).__name__)
 
     async def complete(self, req: ChatRequest, *, user: str | None = None, kind: Kind = "chat") -> ChatResponse:
-        """Ask for a whole answer at once. Raises ``BackendError`` if the server fails, ``UnreadableAnswer``
+        """Ask for a whole answer. Raises ``BackendError`` if the server fails, ``UnreadableAnswer``
         if what it sent back can't be read.
 
         With ``user`` (the Keycloak user id), the call's token counts go to ``on_usage`` as ``kind``.
+        The answer is received as a stream (``stream``) and put together here, so a call that is cancelled
+        (a playbook run stopped while it reads), times out or breaks off still records what it used
+        (suveryn-tracker#270).
         """
-        try:
-            r = await self._http.post("/v1/chat/completions", json=self._payload(req, stream=False))
-        except httpx.HTTPError as e:
-            raise BackendError(f"model backend unreachable: {type(e).__name__}") from e
-        if r.status_code != 200:
-            raise BackendError(f"model backend returned HTTP {r.status_code}: {r.text[:200]}")
-        try:
-            d = r.json()
-            choice = d["choices"][0]
-            message = choice["message"]
-            answer, finish_reason = message.get("content") or "", choice.get("finish_reason")
-            reasoning = message.get("reasoning_content") or ""
-            u = d.get("usage") or {}
-        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
-            raise UnreadableAnswer(f"model backend returned an unexpected answer: {type(e).__name__}") from e
-        usage = Usage(prompt_tokens=u.get("prompt_tokens", 0), completion_tokens=u.get("completion_tokens", 0))
-        await self._record(user, kind, req.model, usage if u else None)  # no counts reported: nothing to record
-        split = ThinkSplitter()  # a server that leaves the reasoning in the text
-        (r1, a1), (r2, a2) = split.feed(answer), split.flush()
+        answer, reasoning, finish_reason, usage = [], [], None, Usage()
+        async with aclosing(self.stream(req, user=user, kind=kind)) as chunks:
+            async for chunk in chunks:
+                answer.append(chunk.text)
+                reasoning.append(chunk.reasoning)
+                finish_reason = chunk.finish_reason or finish_reason
+                usage = chunk.usage or usage
         return ChatResponse(
-            id=d.get("id") or f"chat-{uuid.uuid4().hex}",
+            id=f"chat-{uuid.uuid4().hex}",
             model=await self.model_name(req.model),
-            answer=a1 + a2,
-            reasoning=(reasoning + r1 + r2).strip(),
+            answer="".join(answer),
+            reasoning="".join(reasoning).strip(),
             finish_reason=finish_reason,
             usage=usage,
         )
@@ -269,10 +260,13 @@ class LlamaServerClient:
         prompt_n = predicted_n = chunks = 0
         split = ThinkSplitter()
         try:
-            async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req, stream=True)) as r:
+            async with self._http.stream("POST", "/v1/chat/completions", json=self._payload(req)) as r:
                 if r.status_code != 200:
                     body = (await r.aread()).decode(errors="replace")
                     raise BackendError(f"model backend returned HTTP {r.status_code}: {body[:200]}")
+                if not r.headers.get("content-type", "").startswith("text/event-stream"):
+                    # a server that answered in one go, or not with an answer at all: nothing to read as a stream
+                    raise UnreadableAnswer(f"model backend did not stream its answer: {r.headers.get('content-type', '')[:50]}")
                 async for line in r.aiter_lines():
                     if not line.startswith("data: "):
                         continue

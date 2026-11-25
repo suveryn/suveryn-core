@@ -1,5 +1,7 @@
 """Stopping a streamed answer (docs/design/chat-ui.md §5): the connection to llama-server is closed, so it
-stops generating, and the tokens used until then are still recorded for the user (suveryn-tracker#7)."""
+stops generating, and the tokens used until then are still recorded for the user (suveryn-tracker#7). A whole
+answer is received as a stream too, so one that is stopped (a playbook run stopped while it reads) counts the same
+way (suveryn-tracker#270)."""
 
 import asyncio
 import json
@@ -102,3 +104,47 @@ def test_without_running_counts_the_words_received_are_recorded():
     _, seen, state = asyncio.run(read_two_then("cancel", with_timings=False))
     assert state["closed"]
     assert [(r.prompt_tokens, r.completion_tokens) for r in seen] == [(0, 2)]  # the prompt isn't known
+
+
+def test_a_whole_answer_stopped_halfway_records_what_was_used():
+    """suveryn-tracker#270: a whole answer (a playbook's reading) cancelled while the model writes it."""
+    state: dict = {}
+    seen: list[UsageRecord] = []
+
+    async def record(r: UsageRecord) -> None:
+        seen.append(r)
+
+    async def go():
+        llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=endless_server(state), on_usage=record)
+        task = asyncio.create_task(llm.complete(REQ, user="user-a", kind="playbook-step"))
+        while "payload" not in state:
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)  # the two words have come
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, 5)
+        await llm.aclose()
+
+    asyncio.run(go())
+    assert state["closed"] and state["payload"]["stream"] is True
+    assert [(r.user, r.kind, r.prompt_tokens, r.completion_tokens) for r in seen] == [("user-a", "playbook-step", 1800, 2)]
+
+
+def test_a_server_that_answers_in_one_go_is_an_answer_that_cant_be_read():
+    """Every call streams; a reply that isn't an event stream is not read as an empty answer."""
+    from suveryn_harness.llm import UnreadableAnswer
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "model.gguf"}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "An answer."}, "finish_reason": "stop"}]})
+
+    async def go():
+        llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
+        try:
+            await llm.complete(REQ)
+        finally:
+            await llm.aclose()
+
+    with pytest.raises(UnreadableAnswer):
+        asyncio.run(go())
