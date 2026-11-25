@@ -78,6 +78,28 @@ def test_a_document_is_read_and_an_answer_cites_it(page, deed):
     expect(page.locator("main").get_by_role("group", name="Answer 2 of 2")).to_be_visible()
 
 
+def test_an_email_is_read_with_its_attachment_and_an_answer_cites_it(page, tmp_path):
+    """suveryn-tracker#267: an .eml becomes its message and a document per attachment, read in the sandboxed reader
+    like the rest; a .txt among them. A fictional email."""
+    from email.message import EmailMessage
+
+    m = EmailMessage()
+    m["From"], m["To"], m["Subject"] = "Lotte Verbeke <lotte@firm.example>", "jan@firm.example", "Appartement Testdorp"
+    m.set_content("Dag Jan,\n\nDe vraagprijs van het appartement in Testdorp bedraagt EUR 412.500,00.\n\nLotte")
+    m.add_attachment("Opschortende voorwaarde: financiering uiterlijk op 15 januari 2027.\n".encode(), maintype="text",
+                     subtype="plain", filename="voorwaarden.txt")
+    eml = tmp_path / "Appartement Testdorp.eml"
+    eml.write_bytes(bytes(m))
+    sign_in(page)
+    page.locator("input[type=file]").first.set_input_files(str(eml))
+    for name in ("Appartement Testdorp.eml", "voorwaarden.txt"):
+        expect(page.get_by_text(name).first).to_be_visible(timeout=15_000)
+    expect(page.get_by_text(re.compile(r"^(Read\.|Ready)"))).to_have_count(2, timeout=120_000)
+    text = ask(page, "Wanneer moet de financiering uiterlijk rond zijn?")
+    assert "15 januari 2027" in text  # from the attachment, read as a document of its own
+    assert page.get_by_role("button", name=re.compile(r"Source \d+: voorwaarden\.txt")).count() >= 1
+
+
 def test_thorough_without_an_answer_is_asked_again(page, deed):
     sign_in(page)
     upload(page, deed)

@@ -447,7 +447,7 @@ top right to remove:
 | Ready | A check, the page count |
 | Usable with a warning | An ink triangle, the pages to check |
 | Failed | An ink cross, the reason in words, and one button *Another file* (aria-label "Choose another file") |
-| Not added | Refused on arrival (a kind of file sūveryn doesn't read, or too large) or left out of a .zip. A full reading queue and the upload rate limit are not refusals: the card waits and the upload is sent again (`lib/turns.ts`). For the rest: "Not added." and the reason, never "Couldn't be read", since nothing went wrong reading it. A .zip's card becomes a card per document in it, and one per file left out ("akte.pdf from Prospectus.zip wasn't added. This file is empty.": why is a code of the registry), and the same *Another file* button |
+| Not added | Refused on arrival (a kind of file sūveryn doesn't read, or too large) or left out of a .zip or an email. A full reading queue and the upload rate limit are not refusals: the card waits and the upload is sent again (`lib/turns.ts`). For the rest: "Not added." and the reason, never "Couldn't be read", since nothing went wrong reading it. A .zip's card becomes a card per document in it, and one per file left out ("akte.pdf from Prospectus.zip wasn't added. This file is empty.": why is a code of the registry), and the same *Another file* button |
 | sūveryn's own output | Section 6 |
 
 - In the person's turn, attachments are chips. A question goes with what is read; a document still being read stays in the composer for the next question (`staysInComposer`).
@@ -529,8 +529,8 @@ table explains the two words. The same icon follows the document wherever it app
 
 **What can be uploaded.**
 
-- Uploads can be PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV (`suveryn_rag.formats`). Everything but a PDF is read directly from the file, in the same sandboxed reader, with no OCR or layout model. Older .doc and .xls, macro-enabled and password-protected files are refused with the list of what can be added.
-- Where a passage comes from: in Word and Markdown, its section ("Article 2 › Price"); in Excel and CSV, its cells in Excel's notation ("Prices!A2:D31"), the same in every language. Word and Markdown have no pages, so the sources line shows the file name; *Copy passage* and the downloads give the section. Lists show "Word", "Excel", "Markdown" or "CSV" where a PDF shows its pages.
+- Uploads can be PDF, Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML, HTML (`suveryn_rag.formats`), an email (.eml: the message and each attachment of those kinds) or a .zip of them. Everything but a PDF is read directly from the file, in the same sandboxed reader, with no OCR or layout model. Older .doc and .xls, macro-enabled and password-protected files are refused with the list of what can be added.
+- Where a passage comes from: in Word, Markdown, HTML and an email, its section ("Article 2 › Price"); in Excel, CSV and TSV, its cells in Excel's notation ("Prices!A2:D31"); in JSON and XML, its path ("/parties/0/name", "/deed/party[2]/name"); the same in every language. Word and Markdown have no pages, so the sources line shows the file name; *Copy passage* and the downloads give the section. Lists show the format ("Word", "Excel", "Markdown", "CSV", "TXT", "JSON", "HTML", "EML"…) where a PDF shows its pages.
 - Excel values are read as last calculated, never as formulas; each sheet's first row is repeated at the top of its passages, so the model sees what the columns are; hidden sheets are read. Word headers and footers and Markdown comments are not passages, but are checked for the export mark.
 
 **sūveryn's own output coming back as an upload.** A downloaded answer can be edited and uploaded

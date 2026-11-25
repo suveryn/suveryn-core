@@ -8,14 +8,15 @@ import { messageText } from "./messages";
 describe("the files sūveryn reads", () => {
   it("offers every format the server reads, and only those", () => {
     const extensions = DOCUMENT_FILES.filter((a) => a.startsWith("."));
-    expect(extensions).toEqual([".pdf", ".docx", ".xlsx", ".md", ".markdown", ".csv"]);
-    expect(ACCEPTED_FILES.filter((a) => a.startsWith("."))).toEqual([...extensions, ".zip"]);  // and archives of them
+    expect(extensions).toEqual([".pdf", ".docx", ".xlsx", ".md", ".markdown", ".csv", ".tsv", ".txt", ".json", ".xml", ".html", ".htm"]);
+    expect(ACCEPTED_FILES.filter((a) => a.startsWith("."))).toEqual([...extensions, ".zip", ".eml"]);  // and archives and emails holding them
     for (const ext of extensions) expect(`deed${ext}`).toMatch(DOCUMENT_EXTENSION);
     expect("deed.doc").not.toMatch(DOCUMENT_EXTENSION);
   });
 
   it("names a format without pages the same way in every language", () => {
     expect(["a.docx", "b.XLSX", "c.md", "d.csv", "e.pdf", "f"].map(formatName)).toEqual(["Word", "Excel", "Markdown", "CSV", "", ""]);
+    expect(["a.txt", "b.json", "c.htm", "d.eml"].map(formatName)).toEqual(["TXT", "JSON", "HTML", "EML"]);
   });
 
   it("drops any document extension from a source's file name", () => {
@@ -25,7 +26,7 @@ describe("the files sūveryn reads", () => {
 
   it("says which files can be added when one can't, in the interface's language", () => {
     setLang("en", false);
-    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported" })).toBe("This file type isn't read: use PDF, Word, Excel, Markdown, CSV or .zip.");
+    expect(httpErrorText(415, { kind: "refused", code: "upload.unsupported" })).toBe("This file type isn't read: use PDF, Word, Excel, Markdown, text or data (TXT, CSV, TSV, JSON, XML, HTML), an email (.eml) or a .zip.");
     setLang("fr", false);
     expect(httpErrorText(415, { kind: "refused", code: "upload.content_mismatch" })).toMatch(/^Le contenu de ce fichier ne correspond pas à son type/);
     setLang("en", false);

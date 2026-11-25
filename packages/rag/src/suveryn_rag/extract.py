@@ -73,7 +73,7 @@ class Extraction:
     # Pages with text that Docling still couldn't lay out (after the CPU retry, see ``Extractor``): their
     # text is recovered from the text layer, without structure, and the document needs review.
     layout_failed_pages: list[int] = field(default_factory=list)
-    # A Word, Excel, Markdown or CSV file (``formats``): its passages, already placed (section or
+    # Any other kind of file (``formats``): its passages, already placed (section or
     # cell range), and the text outside its body; ``document`` is None and there are no pages.
     passages: list | None = None
     furniture: list[str] = field(default_factory=list)
@@ -223,7 +223,7 @@ class Extractor:
         self._cpu_converter = cpu_converter
 
     def extract(self, pdf: Path, owner: str | None = None, watch: Watch | None = None) -> Extraction:
-        """Extract one file: a PDF here, a Word, Excel, Markdown or CSV file (by its extension) in
+        """Extract one file: a PDF here, any other kind sūveryn reads (by its extension) in
         ``formats``. The original file is only read; every intermediate file lives in a private work
         directory that is deleted before this returns, also on errors. ``owner`` is for
         ``IsolatedExtractor``'s interface; in-process there is no reader to replace. ``watch`` hears how

@@ -26,12 +26,16 @@ try:  # document handling is optional (suveryn-rag is installed on the GPU machi
         DocumentNotFound,
         SearchUnavailable,
         UploadRejected,
+        holds_documents,
     )
     from suveryn_rag.journal import flush_journal
     from suveryn_rag.store import Scope
 except ImportError:
     flush_journal = None
     MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+
+    def holds_documents(filename: str | None) -> bool:  # stand-in; without suveryn-rag nothing is uploaded
+        return False
 
     @dataclass(frozen=True)
     class Scope:  # stand-in with the same shape; without suveryn-rag it only names where conversations are

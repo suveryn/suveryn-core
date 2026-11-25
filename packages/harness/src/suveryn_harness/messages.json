@@ -205,7 +205,7 @@
   },
   "upload.archive_inside_unsupported": {
    "kind": "refused",
-   "title": "An archive inside the archive isn't opened; it can be added on its own.",
+   "title": "An archive or an email inside an archive or an email isn't opened; it can be added on its own.",
    "status": 415,
    "since": "0.2.0"
   },

@@ -4,8 +4,10 @@ Document ingestion and retrieval: extraction, chunking, embeddings, the vector s
 
 ## Pipeline
 
-A **.zip** upload (`DocumentService.accept_archive`) becomes a document per PDF, Word, Excel, Markdown or
-CSV file inside it, read as below; the rest is listed with a reason. Every entry is checked on upload (read
+A **.zip** upload (`DocumentService.accept_archive`) becomes a document per file inside it that sūveryn
+reads, read as below; the rest is listed with a reason. An **email** (.eml) likewise becomes a document for the
+message (sender, recipients, date, subject, its text) and one per attachment sūveryn reads; unlike a zip, it is
+taken apart at once, each attachment read written to a private upload of its own. Every entry is checked on upload (read
 through, nothing written, the entries (1,000) and the bytes actually unpacked (300 MB) bounded, so a zip
 bomb stops at the limit). The archive is then kept, and each entry is unpacked only when its turn comes:
 only its bytes, never to a path the archive names. An archive counts as one upload in the queue limits,
@@ -14,13 +16,15 @@ however many documents it holds.
 **The queue takes uploaders in turns** (`FairQueue`): one document from each uploader in turn, each
 uploader's own in the order they came. A colleague's one deed is read next, even behind a data room.
 
-PDFs go through the steps below. **Word (.docx), Excel (.xlsx), Markdown (.md) and CSV** files are read
-directly ([`formats.py`](src/suveryn_rag/formats.py)), in the same sandboxed reader: their text and structure
-are in the file, so there is no OCR, layout model or page check. Each passage keeps its place: the section
-(the headings above it) in Word and Markdown, the cells in Excel notation (`Prices!A2:D31`) in a
-spreadsheet. Excel values are read as last calculated, never as formulas; a sheet's first row is repeated in
-every passage of that sheet; a long Word table is split by rows. Word headers and footers and Markdown
-comments are not stored, only checked for sūveryn's export mark ([`marks.py`](src/suveryn_rag/marks.py)).
+PDFs go through the steps below. **Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON,
+XML, HTML and email (.eml)** files are read directly ([`formats.py`](src/suveryn_rag/formats.py)), in the same
+sandboxed reader: their text and structure are in the file, so there is no OCR, layout model or page check.
+Each passage keeps its place: the section (the headings above it) in Word, Markdown and HTML, the cells in
+Excel notation (`Prices!A2:D31`) in a spreadsheet, CSV or TSV, the path in JSON (a JSON Pointer,
+`/parties/0/name`) and XML (an XPath, `/deed/party[2]/name`). XML is read with defusedxml (no entities, no
+outside files). Excel values are read as last calculated, never as formulas; a sheet's first row is repeated in
+every passage of that sheet; a long Word or HTML table is split by rows. Word headers and footers, Markdown
+and HTML comments and an HTML page's title are not stored, only checked for sūveryn's export mark ([`marks.py`](src/suveryn_rag/marks.py)).
 Limits: 300 MB unpacked for an Office file, 250,000 filled cells, 5 million characters.
 
 1. **Extraction (`extract.py`)** uses the `ocr_fast` approach from the [October 2026 benchmark](https://github.com/suveryn/suveryn-docs/blob/main/benchmarks/2026-10-hardware-benchmark.md#document-extraction):
@@ -125,7 +129,7 @@ SUVERYN_TEST_DATABASE_URL=$SUVERYN_DATABASE_URL uv run pytest packages/rag
 
 - `test_integrity.py` and `test_units.py` are fast unit tests (`test_units.py` also checks the offline guard).
 - `test_isolation.py` checks the separate reader with a fake one (`fake_reader.py`): no secrets in its environment, JSON only, a crash, a hang and garbage fail only that document, progress arrives before the answer, a cancel stops the reader at once, a reason comes with its code, and an exception nobody planned for with its type and place only (a report not in that shape is "?", and its reader replaced).
-- `test_formats.py` checks the Word, Excel, Markdown and CSV readers: sections, cell ranges, tables, content controls and tracked changes, nothing left out, the limits, and the mark in the chat's own Word and Excel exports (`fixtures/marked-answer.docx`, `fixtures/marked-table.xlsx`).
+- `test_formats.py` checks the Word, Excel, Markdown, CSV, TSV, text, JSON, XML, HTML and email readers: sections, cell ranges, tables, content controls and tracked changes, nothing left out, the limits, and the mark in the chat's own Word and Excel exports (`fixtures/marked-answer.docx`, `fixtures/marked-table.xlsx`).
 - `test_store.py` checks storage and the ranking answers use (`best_chunks`) against a real pgvector database.
 - `test_answers_e2e.py` is the harness for model updates (suveryn-tracker#21): answers through the whole pipeline, per model, against the citation requirement, the expected facts, the two OCR issues, an injected instruction and server-side sums. See its docstring and `docs/architecture.md` §7. Pages the layout model couldn't read (after a CPU retry when the GPU ran out of memory, `extract.convert_with_fallback`) get a `layout_failed` warning and put the document in `needs_review`. Ingestion adds an `instruction_like_text` warning on pages with text addressed to an AI; it doesn't change the document's status.
 - `test_e2e.py` is the regression bar. It generates a fictional deed with the traps seen so far (`trap_deed.py`): a running header and page numbers, a content line in the footer area, a closing heading, a cadastral reference, and a tenant in arrears buried in boilerplate. It also includes a soil report that exists only as a pasted-in image. It runs that deed through the full pipeline as a born-digital PDF, as a scan, and as a scan with a thin digital label on each page. It requires:

@@ -27,7 +27,7 @@ from .integrity import (
 from .isolation import make_extractor
 from .marks import find_mark
 from .reading import Progress, Unreadable, Watch
-from .formats import CONTENT_TYPE, kind_of
+from .formats import content_type, kind_of
 from .store import Original, Scope, Store
 
 
@@ -121,8 +121,10 @@ def with_context(store, rows) -> list[RetrievedChunk]:
 
 
 def original_of(path: Path) -> Original:
-    """The file as uploaded, to keep with its document (``store.originals``), typed by its extension."""
-    return Original(CONTENT_TYPE.get(kind_of(path.name) or "", "application/octet-stream"), path.read_bytes())
+    """The file as uploaded, to keep with its document (``store.originals``), typed by its extension (a text file
+    with the character set it was read in)."""
+    data = path.read_bytes()
+    return Original(content_type(data, kind_of(path.name) or ""), data)
 
 
 def sha256_of(path: Path) -> str:
@@ -161,7 +163,7 @@ class Rag:
 
     def ingest(self, pdf: Path, filename: str | None = None, owner: str | None = None,
                case_id: uuid.UUID | None = None, watch: Watch | None = None) -> IngestResult:
-        """Extract, chunk, embed and store one file (a PDF, or a Word, Excel, Markdown or CSV file, by its
+        """Extract, chunk, embed and store one file (a PDF, or another kind formats reads, by its
         extension: ``formats``); return its id, status and warnings.
 
         Idempotent per file content: a PDF whose SHA-256 is already stored is not processed
@@ -230,7 +232,7 @@ class Rag:
 
     def _store_passages(self, ex, existing: uuid.UUID | None, name: str, digest: str, owner: str | None,
                         case_id: uuid.UUID | None, original: Original) -> IngestResult:
-        """Store a Word, Excel, Markdown or CSV file read by ``formats``: its passages are already placed
+        """Store a file read by ``formats``: its passages are already placed
         and complete, so the PDF checks (page coverage, recovery, encoding) don't apply. Text addressed
         to an AI is flagged as in a PDF, and the mark is looked for in the body and outside it."""
         t = time.perf_counter()

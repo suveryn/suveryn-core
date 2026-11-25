@@ -156,18 +156,21 @@ def test_a_failed_upload_releases_its_reservation(tmp_path, monkeypatch):
     docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")  # the slot is free again
 
 
-def test_word_excel_markdown_and_csv_are_accepted_and_kept_with_their_extension(tmp_path):
+def test_every_kind_read_is_accepted_and_kept_with_its_extension(tmp_path):
     docs = DocumentService(RagSettings(work_dir=tmp_path))  # no worker: everything stays queued
     for name, head in [("deed.pdf", b"%PDF-1.7"), ("Notes.DOCX", b"PK\x03\x04rest"), ("prices.xlsx", b"PK\x03\x04rest"),
-                       ("notes.md", b"# Title\n"), ("list.csv", b"name;amount\n")]:
+                       ("notes.md", b"# Title\n"), ("list.csv", b"name;amount\n"), ("list.tsv", b"name\tamount\n"),
+                       ("letter.txt", b"Dear"), ("windows.txt", "Dear".encode("utf-16")), ("data.json", b"{}"),
+                       ("deed.xml", b"<deed/>"), ("page.htm", b"<p>x</p>")]:
         job = docs.accept_upload(io.BytesIO(head), name, "user-a")
         assert job.filename == name
     stored = sorted(p.suffix for p in (tmp_path / "uploads").iterdir())
-    assert stored == [".csv", ".docx", ".md", ".pdf", ".xlsx"]  # the reader goes by the extension
+    assert stored == [".csv", ".docx", ".html", ".json", ".md", ".pdf", ".tsv", ".txt", ".txt", ".xlsx", ".xml"]  # the reader goes by the extension
 
 
 @pytest.mark.parametrize("name, head, says", [
-    ("old.doc", b"\xd0\xcf\x11\xe0", r"only PDF, Word \(\.docx\), Excel \(\.xlsx\), Markdown \(\.md\) and CSV files"),
+    ("old.doc", b"\xd0\xcf\x11\xe0", r"only PDF, Word \(\.docx\), Excel \(\.xlsx\), Markdown \(\.md\), CSV"),
+    ("binary.txt", b"MZ\x90\x00", "not a valid text file"),
     ("macro.xlsm", b"PK\x03\x04", "only PDF"),
     ("renamed.docx", b"%PDF-1.7", "not a valid Word file"),   # the content must fit the extension
     ("encrypted.xlsx", b"\xd0\xcf\x11\xe0", "not a valid Excel file"),  # a password-protected workbook isn't a zip
@@ -619,3 +622,115 @@ def test_the_reader_says_its_reasons_and_notes_as_the_registrys_codes_and_keeps_
     assert IntegrityWarning(None, "document.instruction_like_text", "x").message()["params"] == {}
     assert message("document.pages_too_many", pages=900, max=500)["params"] == {"pages": 900, "max": 500}
     assert message("document.reading_too_slow", minutes=30)["params"] == {"minutes": 30}
+
+
+# ------------------------------------------------------------------ an email: the message and its attachments
+from email.message import EmailMessage  # noqa: E402
+
+
+def mail(attachments: list[tuple[str, bytes | EmailMessage]], body: str = "Dear Jan,\n\nThe draft.\n") -> io.BytesIO:
+    """A fictional email with an HTML alternative, a picture inside the HTML, and ``attachments``."""
+    m = EmailMessage()
+    m["From"], m["To"], m["Subject"] = "Lotte Verbeke <lotte@firm.example>", "jan@firm.example", "Deed draft"
+    m.set_content(body)
+    m.add_alternative("<p>Dear Jan,</p><img src='cid:logo'>", subtype="html")
+    m.get_payload()[1].add_related(b"\x89PNG logo", maintype="image", subtype="png", cid="<logo>")
+    for name, data in attachments:
+        if isinstance(data, EmailMessage):
+            m.add_attachment(data)
+        else:
+            m.add_attachment(data, maintype="application", subtype="octet-stream", filename=name)
+    return io.BytesIO(bytes(m))
+
+
+def test_an_email_becomes_its_message_and_a_job_per_attachment_read(tmp_path):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    forwarded = EmailMessage()
+    forwarded["Subject"] = "Earlier"
+    forwarded.set_content("Before.")
+    a = docs.accept_archive(mail([("deed.pdf", b"%PDF-1.7 a deed"), ("prices.csv", b"a;b\n1;2\n"), ("room.zip", b"PK\x03\x04"),
+                                  ("photo.heic", b"heic"), ("renamed.pdf", b"PK\x03\x04"), ("empty.txt", b""),
+                                  ("", forwarded)]), "Deed draft.eml", "user-a")
+    assert a.filename == "Deed draft.eml"
+    assert [j.filename for j in a.jobs] == ["Deed draft.eml", "deed.pdf", "prices.csv"]  # the message first
+    assert all(j.archive == "Deed draft.eml" and j.status == "queued" for j in a.jobs)
+    # the picture in the HTML is listed too; a forwarded email isn't opened, as an archive inside one isn't
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [
+        ("attachment-1.png", "upload.unsupported"), ("attachment-8.eml", "upload.archive_inside_unsupported"),
+        ("empty.txt", "upload.empty"),
+        ("photo.heic", "upload.unsupported"), ("renamed.pdf", "upload.content_mismatch"),
+        ("room.zip", "upload.archive_inside_unsupported")]
+    assert uploads(tmp_path) == [".csv", ".eml", ".pdf"]  # taken apart once: each attachment read, privately
+    assert len(docs.pending_jobs("user-a")) == 3
+
+
+def test_an_email_is_taken_apart_one_document_at_a_time_and_then_deleted(tmp_path):
+    seen: list[tuple[str, bytes]] = []
+
+    class Reading:
+        store = FakeStore(0)
+
+        def ingest(self, path, filename, owner, case_id=None, watch=None):
+            seen.append((Path(path).suffix, Path(path).read_bytes()[:9]))
+            return type("R", (), {"document_id": uuid.uuid4(), "status": "ok", "pages": 1, "ocr_pages": 0, "warnings": [], "noticed": None})()
+
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    a = docs.accept_archive(mail([("deed.pdf", b"%PDF-1.7 a deed"), ("notes.txt", b"A note.")]), "m.eml", "user-a")
+    docs._ingest, docs.state = Reading(), "ready"
+    docs._worker = threading.Thread(target=docs._work, daemon=True)
+    docs._worker.start()
+    assert wait(lambda: all(j.status == "ready" for j in a.jobs))
+    assert [s for s, _ in seen] == [".eml", ".pdf", ".txt"]
+    assert seen[1][1] == b"%PDF-1.7 " and seen[2][1] == b"A note."  # the attachments' own bytes, decoded from base64
+    assert wait(lambda: not list((tmp_path / "uploads").iterdir()))
+
+
+DEEP = b"Content-Type: multipart/mixed; boundary=b0\n\n" + b"".join(
+    f"--b{i}\nContent-Type: multipart/mixed; boundary=b{i + 1}\n\n".encode() for i in range(1000))
+
+
+@pytest.mark.parametrize("data, says", [(b"", "empty"), (b"\x00\x01binary", "not a valid email file"),
+                                        (DEEP, "not a valid email")])
+def test_an_email_that_cant_be_used_adds_nothing_and_leaves_nothing(tmp_path, data, says):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(UploadRejected, match=says):
+        docs.accept_archive(io.BytesIO(data), "m.eml", "user-a")
+    assert not list((tmp_path / "uploads").iterdir())
+    assert not docs.pending_jobs("user-a")
+
+
+def test_an_email_in_a_zip_is_listed_not_opened(tmp_path):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    a = docs.accept_archive(zipped({"deed.pdf": b"%PDF-1.7", "mail.eml": b"From: a@b.example\n\nHi"}), "a.zip", "user-a")
+    assert [j.filename for j in a.jobs] == ["deed.pdf"]
+    assert [(s["name"], s["failure"]["code"]) for s in a.skipped] == [("mail.eml", "upload.archive_inside_unsupported")]
+
+
+def test_an_email_is_never_read_as_one_document_alone(tmp_path):
+    with pytest.raises(ValueError, match="accept_archive"):
+        DocumentService(RagSettings(work_dir=tmp_path)).accept_upload(io.BytesIO(b"From: a@b.example\n\nHi"), "m.eml", "user-a")
+
+
+def test_a_full_queue_refuses_an_email_before_taking_it_apart(tmp_path, monkeypatch):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    monkeypatch.setattr(service, "parse_email", lambda data: pytest.fail("parsed"))
+    monkeypatch.setattr(docs, "_check_room", lambda owner: (_ for _ in ()).throw(UploadRejected("full", "upload.too_many")))
+    with pytest.raises(UploadRejected, match="full"):
+        docs.accept_archive(mail([]), "m.eml", "user-a")
+    assert not list((tmp_path / "uploads").iterdir())
+
+
+def test_a_plain_email_of_one_part_becomes_its_message(tmp_path):
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    a = docs.accept_archive(io.BytesIO(b"From: lotte@firm.example\nSubject: Deed\n\nThe deed is ready.\n"), "m.eml", "user-a")
+    assert [j.filename for j in a.jobs] == ["m.eml"] and a.skipped == []
+
+
+def test_an_email_with_more_parts_than_any_real_one_is_refused(tmp_path, monkeypatch):
+    from suveryn_rag import formats
+    monkeypatch.setattr(formats, "MAX_EMAIL_PARTS", 3)
+    docs = DocumentService(RagSettings(work_dir=tmp_path))
+    with pytest.raises(UploadRejected) as e:
+        docs.accept_archive(mail([("a.txt", b"a"), ("b.txt", b"b"), ("c.txt", b"c")]), "m.eml", "user-a")
+    assert e.value.code == "upload.archive_files_too_many"
+    assert not list((tmp_path / "uploads").iterdir())
