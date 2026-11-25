@@ -1,5 +1,5 @@
 /**
- * Time ranges and number formats for the usage views (suveryn-tracker#7). Ranges are rolling
+ * Time ranges and the buckets' labels for the usage views (suveryn-tracker#7). Ranges are rolling
  * (the last hour, day, week or month); a custom range covers whole local days.
  */
 import * as fmt from "../i18n/format";
