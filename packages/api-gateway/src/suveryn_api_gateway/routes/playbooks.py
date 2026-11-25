@@ -281,9 +281,10 @@ async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: 
 
 
 def _stop_reading(app, run_id: str) -> None:
-    """A run stopped or cancelled while it reads: its reading ends at once. The model call is abandoned (llama-server
-    ends a request whose connection closed), the person's place among the runs reading is given back, and nothing it
-    read is written: the run has ended (``finish_read`` writes only to a run still reading)."""
+    """A run stopped or cancelled while it reads: its reading ends at once. The model call is abandoned (llama-server's
+    source stops a request whose connection closed; not yet seen on an appliance), the person's place among the runs
+    reading is given back, and nothing it read is written: the run has ended (``finish_read`` writes only to a run still
+    reading)."""
     task = app.state.reading.get(run_id)
     if task is not None and not task.done():
         task.cancel()
