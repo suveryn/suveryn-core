@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# The GPU round: the tests that need a real card and the real model, on a rented GPU machine (a RunPod pod,
-# Ubuntu 22.04 or 24.04 with the CUDA toolkit, root, /workspace on the volume). From a clone of this repository:
+# The GPU round: the tests that need a real card and the real model, on a rented GPU machine with the CUDA toolkit,
+# as root: a RunPod pod (Ubuntu 22.04 or 24.04, /workspace on the volume) or the regression round's Verda VM (Ubuntu
+# 26.04; WORK=/root/gpu-round there). From a clone of this repository:
 #
 #   bash scripts/gpu-round.sh                 # llama.cpp at the appliance's pin
 #   COMPARE=b12111 bash scripts/gpu-round.sh  # and again with a newer llama.cpp, the answers and the reads only
@@ -74,13 +75,21 @@ command -v nvcc >/dev/null || die "no nvcc: choose a pod template with the CUDA 
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
 [ "$(df -BG --output=avail "$WORK" | tail -1 | tr -dc 0-9)" -ge 45 ] || die "less than 45 GB free in $WORK"
 
-step "system packages (PostgreSQL 16 with pgvector, OCR, build tools)"
+step "system packages (PostgreSQL with pgvector, OCR, build tools)"
 apt-get update -qq
-if [ ! -d /usr/lib/postgresql/16 ]; then
-  apt-get install -y -qq curl ca-certificates gnupg lsb-release postgresql-common >/dev/null
-  /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
-  apt-get install -y -qq postgresql-16 postgresql-16-pgvector >/dev/null
-fi
+# PostgreSQL by the Ubuntu release, as suveryn-appliance's provisioning takes it (POSTGRES_FOR_UBUNTU): the archive's
+# 16 on 24.04 and 18 on 26.04; elsewhere (22.04) the PostgreSQL project's 16. Not "whatever apt's postgresql
+# points to": once the project's repository is set up, that is its newest release.
+case "$(. /etc/os-release && echo "$VERSION_ID")" in
+  24.04) PG=16 ;;
+  26.04) PG=18 ;;
+  *) PG=16
+     if [ ! -d /usr/lib/postgresql/16 ]; then
+       apt-get install -y -qq curl ca-certificates gnupg lsb-release postgresql-common >/dev/null
+       /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+     fi ;;
+esac
+apt-get install -y -qq "postgresql-$PG" "postgresql-$PG-pgvector" >/dev/null
 apt-get install -y -qq git cmake build-essential libssl-dev openjdk-21-jre-headless ocrmypdf tesseract-ocr-nld tesseract-ocr-fra \
   tesseract-ocr-eng ghostscript poppler-utils >/dev/null
 
@@ -109,8 +118,10 @@ build_llama() {  # a tag: clone at its pinned commit, build llama-server for thi
   [ -d "$dir/.git" ] || git -c advice.detachedHead=false clone -q --depth 1 --branch "$tag" https://github.com/ggml-org/llama.cpp "$dir"
   [ "$(git -C "$dir" rev-parse HEAD)" = "${LLAMA_COMMIT[$tag]}" ] || die "llama.cpp $tag isn't at its pinned commit"
   if [ ! -x "$dir/build/bin/llama-server" ]; then
+    # Without llama.cpp's own web page: its build downloads it, unpinned, and fails without it (b12111; the
+    # appliance's provisioning turns it off the same way, suveryn-tracker#224 and #266)
     cmake -S "$dir" -B "$dir/build" -DGGML_CUDA=ON -DGGML_CUDA_NCCL=OFF -DCMAKE_CUDA_ARCHITECTURES=native \
-      -DGGML_NATIVE=ON -DLLAMA_CURL=OFF -DCMAKE_BUILD_TYPE=Release >/dev/null
+      -DGGML_NATIVE=ON -DLLAMA_CURL=OFF -DLLAMA_USE_PREBUILT_UI=OFF -DLLAMA_BUILD_UI=OFF -DCMAKE_BUILD_TYPE=Release >/dev/null
     cmake --build "$dir/build" --target llama-server -j "$(nproc)" >/dev/null
   fi
 }
@@ -132,7 +143,7 @@ step "Docling and bge-m3"
 SUVERYN_RAG_DEVICE=cuda uv run suveryn-fetch-models
 
 step "database"
-pg_ctlcluster 16 main status >/dev/null 2>&1 || pg_ctlcluster 16 main start
+pg_ctlcluster "$PG" main status >/dev/null 2>&1 || pg_ctlcluster "$PG" main start
 su postgres -c "psql -qc \"ALTER USER postgres PASSWORD 'postgres'\""
 su postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='suveryn_test'\"" | grep -q 1 \
   || su postgres -c "createdb suveryn_test"
@@ -177,7 +188,7 @@ playbook_runs() {  # a tag: the end-to-end stack's PostgreSQL, Keycloak and gate
   local tag="$1"
   step "playbook runs-$tag"
   export E2E_SERVICES=local E2E_KEYCLOAK_HOME="$WORK/keycloak-$KC_VERSION" E2E_LLM="http://127.0.0.1:$PORT" E2E_NO_UI=1 \
-    E2E_RAG_DEVICE=cuda E2E_PACKS_DIR="$PACKS"
+    E2E_RAG_DEVICE=cuda E2E_PACKS_DIR="$PACKS" E2E_PG_VERSION="$PG"
   set +e
   uv run python e2e/stack.py up 2>&1 | grep -v "health:"
   if [ "$ONLY_PEOPLE" != 1 ]; then

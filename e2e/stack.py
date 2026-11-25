@@ -105,6 +105,22 @@ def psql(sql: str, db: str = "postgres") -> str:
     return sh("psql", f"{PG_URL}/{db}", "-v", "ON_ERROR_STOP=1", "-tAc", sql).stdout.strip()
 
 
+def pg_version() -> str:
+    """The machine's own PostgreSQL cluster to use (local mode): E2E_PG_VERSION (the GPU round passes the one it
+    installed), else the version of the cluster on port 5432 as pg_lsclusters (postgresql-common) lists it."""
+    if os.environ.get("E2E_PG_VERSION"):
+        return os.environ["E2E_PG_VERSION"]
+    try:
+        listed = sh("pg_lsclusters", "--no-header", check=False).stdout
+    except FileNotFoundError:
+        listed = ""
+    for line in listed.splitlines():  # version, cluster, port, status, owner, data directory, log file
+        fields = line.split()
+        if len(fields) >= 3 and fields[1] == "main" and fields[2] == "5432":
+            return fields[0]
+    sys.exit("no PostgreSQL cluster 'main' on port 5432 (pg_lsclusters): install one, or set E2E_PG_VERSION")
+
+
 def postgres_start() -> None:
     if MODE == "docker":
         if sh("docker", "ps", "-aq", "-f", "name=^e2e-postgres$").stdout.strip():
@@ -113,7 +129,7 @@ def postgres_start() -> None:
             sh("docker", "run", "-d", "--name", "e2e-postgres", "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=postgres",
                PG_IMAGE, "-c", "wal_recycle=off")
     else:
-        sh("pg_ctlcluster", "16", "main", "start", check=False)
+        sh("pg_ctlcluster", pg_version(), "main", "start", check=False)
     wait_for("postgres", pg_ready, 60)
 
 
@@ -121,7 +137,7 @@ def postgres_stop() -> None:
     if MODE == "docker":
         sh("docker", "stop", "e2e-postgres")
     else:
-        sh("pg_ctlcluster", "16", "main", "stop", "-m", "fast")
+        sh("pg_ctlcluster", pg_version(), "main", "stop", "-m", "fast")
 
 
 def postgres_prepare() -> None:
@@ -349,7 +365,7 @@ def down() -> None:
             sh("docker", "rm", "-f", c, check=False)
     else:
         kill("keycloak")
-        sh("pg_ctlcluster", "16", "main", "stop", "-m", "fast", check=False)
+        sh("pg_ctlcluster", pg_version(), "main", "stop", "-m", "fast", check=False)
     print("down")
 
 
