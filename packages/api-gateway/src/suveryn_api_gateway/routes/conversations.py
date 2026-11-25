@@ -162,8 +162,7 @@ async def ask_in_conversation(conversation_id: str, body: QuestionIn, request: R
     written, whatever happens to it: written out, failed, or stopped when the connection closes
     (suveryn-tracker#251). A question follows an answer (``after``, once there is one), and the model reads the
     stored turns on the way to it; ``again`` (*Regenerate*) gives a stored question another answer, beside the earlier
-    ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as ``POST /v1/chat`` streams (its
-    events). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
+    ones, which stay: a conversation is a tree, as in Claude and ChatGPT. Answers as a stream of events (routes/chat.py). Someone else's conversation, a playbook run's, or one past the office's keep period: 404; a document to
     show with it that isn't the caller's to see: 404; while an answer is being written in it, a question without the
     answer it follows, or an ``after`` or ``again`` that isn't an answer or a question of it: 409."""
     store, cid = history_or_503(request), _conversation_id(conversation_id)

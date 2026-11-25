@@ -1,59 +1,4 @@
 {
- "grounded": {
-  "body": {
-   "answer": "De koopprijs is EUR 412.500,00 [1].",
-   "asked_again": false,
-   "calculations": [],
-   "citation_issues": [],
-   "citations": [
-    {
-     "context": null,
-     "source": {
-      "decimals": null,
-      "document_id": "00000000-0000-4000-8000-000000000001",
-      "location": "p. 2 · Artikel 2",
-      "page": 2
-     },
-     "text": "De koopprijs bedraagt EUR 412.500,00."
-    }
-   ],
-   "complete": true,
-   "finish_reason": "stop",
-   "id": "x",
-   "instruction_like_sources": [],
-   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
-   "narrowed_to": null,
-   "reasoning": "",
-   "support_spans": [
-    {
-     "facts": [
-      [
-       26,
-       36
-      ]
-     ],
-     "how": "words",
-     "marker": 0,
-     "n": 1,
-     "ranges": [
-      [
-       0,
-       37
-      ]
-     ]
-    }
-   ],
-   "thinking_cut": false,
-   "thought_seconds": null,
-   "unverified_figures": [],
-   "usage": {
-    "completion_tokens": 0,
-    "prompt_tokens": 0
-   }
-  },
-  "media_type": "application/json",
-  "status": 200
- },
  "no_such_document": {
   "body": {
    "code": "answer.document_not_found",
@@ -80,34 +25,15 @@
   "media_type": "application/problem+json",
   "status": 422
  },
- "plain": {
-  "body": {
-   "answer": "De koopprijs is EUR 412.500,00 [1].",
-   "asked_again": false,
-   "calculations": [],
-   "citation_issues": [],
-   "citations": [],
-   "complete": null,
-   "finish_reason": "stop",
-   "id": "x",
-   "instruction_like_sources": [],
-   "model": "Qwen3.8-27B-UD-Q4_K_M.gguf",
-   "narrowed_to": null,
-   "reasoning": "",
-   "support_spans": [],
-   "thinking_cut": false,
-   "thought_seconds": null,
-   "unverified_figures": [],
-   "usage": {
-    "completion_tokens": 0,
-    "prompt_tokens": 0
-   }
-  },
-  "media_type": "application/json",
-  "status": 200
- },
  "stream": {
   "body": [
+   {
+    "data": {
+     "answer": null,
+     "question": 1
+    },
+    "event": "stored"
+   },
    {
     "data": {
      "complete": null,
@@ -148,6 +74,13 @@
      "text": "De koopprijs is EUR 412.500,00 [1]."
     },
     "event": "delta"
+   },
+   {
+    "data": {
+     "answer": 2,
+     "question": 1
+    },
+    "event": "stored"
    },
    {
     "data": {
@@ -211,12 +144,26 @@
   "body": [
    {
     "data": {
+     "answer": null,
+     "question": 1
+    },
+    "event": "stored"
+   },
+   {
+    "data": {
      "complete": null,
      "model": null,
      "passages": null,
      "step": "searching"
     },
     "event": "status"
+   },
+   {
+    "data": {
+     "answer": 2,
+     "question": 1
+    },
+    "event": "stored"
    },
    {
     "data": {
@@ -233,6 +180,13 @@
  },
  "stream_thorough": {
   "body": [
+   {
+    "data": {
+     "answer": null,
+     "question": 1
+    },
+    "event": "stored"
+   },
    {
     "data": {
      "complete": null,
@@ -288,6 +242,13 @@
      "text": "The price is EUR 412.500,00 [1]."
     },
     "event": "delta"
+   },
+   {
+    "data": {
+     "answer": 2,
+     "question": 1
+    },
+    "event": "stored"
    },
    {
     "data": {

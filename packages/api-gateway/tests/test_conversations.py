@@ -6,7 +6,7 @@ tests at the end run against a real PostgreSQL and are skipped unless SUVERYN_TE
 
 import os
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -14,15 +14,13 @@ from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.conversations import (
-    Conversation,
     ConversationSettings,
     ConversationStore,
-    ConversationSummary,
     cited_documents,
     redact,
 )
 from suveryn_harness import LlamaServerClient, LLMSettings
-from conftest import kept
+from conftest import FakeConversations, kept
 from test_auth import SETTINGS, FakeKeycloak
 from test_documents import llm_transport
 
@@ -37,159 +35,6 @@ TURNS = [
 def said(turns: list[dict]) -> list[tuple[str, str]]:
     """Who said what, in order: the turns as kept, without what the server adds."""
     return [(t["role"], t["text"]) for t in turns]
-
-
-class FakeConversations:
-    """In-memory stand-in for ``ConversationStore``."""
-
-    def __init__(self):
-        self.rows: dict[uuid.UUID, dict] = {}
-        self.keep = "manual"  # the gateway sets the office's period before listing (routes/common.py)
-
-    def purge(self):
-        self.purged = getattr(self, "purged", []) + [self.keep]
-        return 0
-
-    def older_than(self, days):
-        limit = datetime.now(UTC) - timedelta(days=days)
-        return sum(1 for r in self.rows.values() if r["updated_at"] <= limit)
-
-    # unfinished cleanings after a document's deletion (routes/documents.py): (owner, document) -> (delete, case)
-    cleanups: dict
-
-    def note_cleanup(self, owner, document_id, delete_conversations, case_id):
-        self.__dict__.setdefault("cleanups", {})[(owner, document_id)] = (delete_conversations, case_id)
-
-    def cleanup_done(self, owner, document_id):
-        self.__dict__.setdefault("cleanups", {}).pop((owner, document_id), None)
-
-    def finish_cleanups(self):
-        pending = list(self.__dict__.setdefault("cleanups", {}).items())
-        for (owner, did), (delete, case_id) in pending:
-            self.remove_document(owner, did, delete, case_id)
-            self.cleanup_done(owner, did)
-        return len(pending)
-
-    def summaries_all(self, owner, case_ids):
-        rows = sorted((r for r in self.rows.values() if (r["owner"] == owner and (r["case_id"] is None or r["case_id"] in case_ids))
-                       or (r["shared"] and r["case_id"] in case_ids)),
-                      key=lambda r: r["updated_at"], reverse=True)
-        return [self._summary(r) for r in rows]
-
-    def summaries(self, owner, case_id=None):
-        rows = sorted((r for r in self.rows.values() if r["case_id"] == case_id
-                       and (r["owner"] == owner or (r["shared"] and case_id is not None))),
-                      key=lambda r: r["updated_at"], reverse=True)
-        return [self._summary(r) for r in rows]
-
-    @staticmethod
-    def _summary(r):
-        return ConversationSummary(**{k: r[k] for k in ("id", "title", "created_at", "updated_at", "owner", "shared")},
-                                   case_id=str(r["case_id"]) if r["case_id"] else None, messages=len(r["turns"]),
-                                   pinned=bool(r.get("pinned")))
-
-    def get(self, cid, owner):
-        r = self.rows.get(cid)
-        if not r or r["owner"] != owner:
-            return None
-        return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
-
-    def get_shared(self, cid):
-        r = self.rows.get(cid)
-        if not r or not r["shared"] or r["case_id"] is None:
-            return None
-        return Conversation(**self._summary(r).model_dump(), turns=r["turns"])
-
-    def rename(self, cid, owner, title):
-        r = self.rows.get(cid)
-        if not r or r["owner"] != owner:
-            return None
-        r["title"] = title
-        return self._summary(r)
-
-    def set_pinned(self, cid, owner, pinned):
-        r = self.rows.get(cid)
-        if not r or r["owner"] != owner or r["case_id"] is not None:
-            return None
-        r["pinned"] = pinned
-        return self._summary(r)
-
-    def move(self, cid, owner, case_id):
-        r = self.rows.get(cid)
-        if not r or r["owner"] != owner or r["case_id"] is not None:
-            return None
-        r.update(case_id=case_id, shared=False, pinned=False)
-        return self._summary(r)
-
-    def unshare_case(self, case_id):
-        rows = [r for r in self.rows.values() if str(r["case_id"]) == str(case_id) and r["shared"]]
-        for r in rows:
-            r["shared"] = False
-        return len(rows)
-
-    def set_shared(self, cid, owner, shared):
-        r = self.rows.get(cid)
-        if not r or r["owner"] != owner or r["case_id"] is None:
-            return None
-        r["shared"] = shared
-        return self._summary(r)
-
-    # A conversation the server writes turn by turn (suveryn-tracker#251), as ``ConversationStore`` does.
-    def place(self, cid):
-        r = self.rows.get(cid)
-        return (r["owner"], r["case_id"], bool(r.get("run"))) if r else None
-
-    def start(self, cid, owner, title, case_id):
-        if cid in self.rows:
-            return False
-        now = datetime.now(UTC)
-        self.rows[cid] = {"id": str(cid), "owner": owner, "title": title, "pinned": False, "turns": [],
-                          "created_at": now, "updated_at": now, "case_id": case_id, "shared": False}
-        return True
-
-    def turns_of(self, cid):
-        from suveryn_api_gateway.conversations import Turn
-
-        return [Turn(seq=i, role=t["role"], by=t.get("by", "x"), at=t.get("at", datetime.now(UTC)), text=t.get("text", ""),
-                     meta={k: v for k, v in t.items() if k not in ("role", "text", "by", "at")})
-                for i, t in enumerate(self.rows[cid]["turns"], start=1)]
-
-    def add(self, cid, role, by, text, meta, documents):
-        self.rows[cid]["turns"].append({"role": role, "text": text, "by": by, **meta})
-        self.rows[cid]["updated_at"] = datetime.now(UTC)
-        return self.turns_of(cid)[-1]
-
-    def using_document(self, owner, document_id, case_id=None):
-        rows = sorted((r for r in self.rows.values() if (r["case_id"] == case_id if case_id is not None else r["owner"] == owner)),
-                      key=lambda r: r["updated_at"], reverse=True)
-        return [self._summary(r) for r in rows if str(document_id) in cited_documents(r["turns"])]
-
-    def remove_document(self, owner, document_id, delete_conversations=False, case_id=None):
-        hits = self.using_document(owner, document_id, case_id)
-        for h in hits:
-            if delete_conversations:
-                del self.rows[uuid.UUID(h.id)]
-            else:
-                redact(self.rows[uuid.UUID(h.id)]["turns"], lambda d: d == str(document_id))
-        return len(hits)
-
-    def delete(self, cid, owner):
-        if cid in self.rows and self.rows[cid]["owner"] == owner:
-            del self.rows[cid]
-            return True
-        return False
-
-    def delete_all(self, owner):
-        mine = [c for c, r in self.rows.items() if r["owner"] == owner]
-        for c in mine:
-            del self.rows[c]
-        return len(mine)
-
-    def delete_case(self, case_id):
-        gone = [c for c, r in self.rows.items() if r["case_id"] == case_id]
-        for c in gone:
-            del self.rows[c]
-        return len(gone)
 
 
 @pytest.fixture

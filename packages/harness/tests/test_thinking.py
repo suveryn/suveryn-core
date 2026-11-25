@@ -204,7 +204,7 @@ def test_thinking_past_its_allowance_is_stopped_before_the_length_limit():
 
 
 def test_without_streaming_thinking_without_an_answer_is_asked_again_too(caplog):
-    """VM regression 9c97d76, findings 1 and 9: ``POST /v1/chat`` without streaming still came back empty after three
+    """VM regression 9c97d76, findings 1 and 9: an answer asked for whole still came back empty after three
     minutes, and ``thought_seconds`` was empty."""
     with caplog.at_level("INFO", logger="suveryn.harness"):
         done = asyncio.run(ChatService(_thinker(3)).answer(ask(thinking=True), "alice"))

@@ -45,7 +45,8 @@ MAX_SCHEMA_CHARS = 60_000
 
 
 class ChatRequest(BaseModel):
-    """Body of ``POST /v1/chat``.
+    """What the model is asked: a question, the turns before it, and the documents it is answered from. The gateway
+    builds it from a question asked in a conversation and the turns it stored (suveryn-tracker#251).
 
     Limits are deliberately bounded: ``max_tokens`` up to 8192 keeps one request from occupying
     the GPU for minutes, and ``temperature`` defaults to 0 because notarial answers should be

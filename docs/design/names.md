@@ -18,9 +18,9 @@ gateway, so a rename reaches both at once (the founder's decision of 15 November
 something outside sūveryn calls the gateway (a connector, a partner's tool, an office's script): from then a
 released operation is never renamed, and a list and a test guard it, as for codes.
 
-This is about names. A **web address** (`/v1/chat`, `/health`) is another matter and is not free to change: the
-appliance is pinned to one core commit and calls the gateway by address (its web server's rules for `/health`,
-`/v1/chat` and `/v1/documents`; provisioning's checks of `/auth/…` and `/v1/documents…`), so a changed address
+This is about names. A **web address** (`/v1/documents`, `/health`) is another matter and is not free to change: the
+appliance is pinned to one core commit and calls the gateway by address (its web server's rules for `/health`
+and `/v1/documents`; provisioning's checks of `/auth/…` and `/v1/documents…`), so a changed address
 doesn't reach it at once, and for the streaming rules it wouldn't even fail: it would silently stop streaming. An
 address changes in both repositories together.
 
@@ -96,9 +96,9 @@ whoever reviews the change.
 - **The name is the server function's own name.**
 - **What enforces it.** A test: a read starts with `get_`, `list_` or `preview_` and nothing else does. As for codes, whether a name is true is the reviewer's to check.
 
-## The groups of operations: thirteen
+## The groups of operations: twelve
 
-Called groups, not areas ("area" is the codes' word): `auth`, `answers`, `models`, `cases`, `settings` (the office's settings), `playbooks`, `documents`, `conversations`, `users` (people, pictures and accounts), `usage`, `backups`, `clock`, `status`.
+Called groups, not areas ("area" is the codes' word): `auth`, `models`, `cases`, `settings` (the office's settings), `playbooks`, `documents`, `conversations` (a question is asked in one: suveryn-tracker#251), `users` (people, pictures and accounts), `usage`, `backups`, `clock`, `status`.
 
 Three groups hold operations that live in another group's module: the office's people (`users`) and the office's
 settings (`settings`) are in `routes/cases.py`, the installed models (`models`) in `routes/health.py`, each on a
@@ -109,5 +109,5 @@ router of its own that carries the group.
 Settled as their own later changes: the words stored in the database (the access log's
 actions, the states of runs and uploads: suveryn-tracker#159), the names of each operation's inputs (`case_id` and
 `case` for the same thing), the field names inside answers, the names of the values inside codes (`n`, `max`), the
-names of the data shapes, and the web addresses that no longer match their operation (`/auth/logout`, `/v1/chat`,
+names of the data shapes, and the web addresses that no longer match their operation (`/auth/logout`,
 `/v1/admin/cases/settings`, `/v1/documents/jobs/…`, `…/avatar`), which the appliance's web server and checks use too.

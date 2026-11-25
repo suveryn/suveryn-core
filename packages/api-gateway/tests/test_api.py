@@ -4,6 +4,7 @@ import json
 
 import httpx
 import pytest
+from conftest import ask
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
@@ -60,9 +61,9 @@ def make_client():
 REQ = {"messages": [{"role": "user", "content": "Wat is een akte?"}]}
 
 
-def test_chat_json_shape(make_client):
+def test_an_answer_is_its_done_event(make_client):
     with make_client(fake_backend()) as c:
-        r = c.post("/v1/chat", json=REQ)
+        r = ask(c, REQ)
     assert r.status_code == 200
     d = r.json()
     assert d["answer"] == "Een akte."
@@ -71,12 +72,13 @@ def test_chat_json_shape(make_client):
     assert d["usage"] == {"prompt_tokens": 12, "completion_tokens": 3}
 
 
-def test_chat_stream_events(make_client):
-    with make_client(fake_backend()) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
-        assert r.headers["content-type"].startswith("text/event-stream")
-        events = [(b.split("\n")[0][7:], json.loads(b.split("\n")[1][6:]))
-                  for b in r.read().decode().strip().split("\n\n")]
-    assert [e for e, _ in events] == ["status", "delta", "delta", "done"]
+def test_an_answer_streams_its_events(make_client):
+    with make_client(fake_backend()) as c:
+        r = ask(c, REQ)
+    assert r.headers["content-type"].startswith("text/event-stream")
+    events = r.events
+    assert [e for e, _ in events] == ["stored", "status", "delta", "delta", "stored", "done"]
+    events = [e for e in events if e[0] != "stored"]
     assert events[0][1]["step"] == "writing"  # a plain answer: no document search
     assert "".join(p["text"] for e, p in events if e == "delta") == "Een akte."
     done = events[-1][1]
@@ -88,50 +90,45 @@ def test_a_model_that_cant_be_reached_is_a_part_that_is_down(make_client):
     # one code wherever the model fails (asking, a stream, a playbook's reading), and so one status: 503, as the
     # decision of 12 November says of a part that is down (it was 502 here and 503 in a playbook)
     with make_client(fake_backend(chat_status=500)) as c:
-        r = c.post("/v1/chat", json=REQ)
+        r = ask(c, REQ)
         assert (r.status_code, r.json()["kind"], r.json()["code"]) == (503, "unavailable", "model.unavailable")
 
 
 def test_a_model_that_answers_something_unreadable_is_an_unplanned_failure_not_a_part_that_is_down(make_client):
     """suveryn-tracker#164: model.unavailable was said for it too; now a reference the log has, asked or streamed."""
     with make_client(fake_backend(garbled=True)) as c:
-        r = c.post("/v1/chat", json=REQ)
-        assert (r.status_code, r.json()["kind"], r.json()["code"]) == (500, "internal", "system.internal") and r.json()["params"]["ref"]
-        with c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as s:
-            last = s.read().decode().rstrip().split("\n\n")[-1]
-    said = json.loads(last.split("data: ", 1)[1])
-    assert last.startswith("event: error") and (said["kind"], said["code"]) == ("internal", "system.internal") and said["params"]["ref"]
+        r = ask(c, REQ)
+    assert r.events[-1][0] == "error"  # streamed: the answer's last event
+    assert (r.status_code, r.json()["kind"], r.json()["code"]) == (500, "internal", "system.internal") and r.json()["params"]["ref"]
     with make_client(fake_backend(garbled="models")) as c:  # the list of models, too
         r = c.get("/v1/models")
         assert (r.status_code, r.json()["code"]) == (500, "system.internal")
-        r = c.post("/v1/chat", json={**REQ, "model": MODEL})
+        r = ask(c, {**REQ, "model": MODEL})
         assert (r.status_code, r.json()["code"]) == (500, "system.internal")
-        with c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as s:  # not asked for by name: the answer goes ahead
-            assert s.read().decode().rstrip().split("\n\n")[-1].startswith("event: done")
+        assert ask(c, REQ).events[-1][0] == "done"  # not asked for by name: the answer goes ahead
 
 
 def test_stream_backend_error_event(make_client, caplog):
-    with make_client(unreachable_backend()) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
-        body = r.read().decode()
-    last = body.rstrip().split("\n\n")[-1]
-    assert body.startswith("event: status") and last.startswith("event: error")
+    with make_client(unreachable_backend()) as c:
+        r = ask(c, REQ)
+    assert [e for e, _ in r.events][1] == "status" and r.events[-1][0] == "error"
     # the event says it as every message is said: a code with its kind, for the page to word
-    said = json.loads(last.split("data: ", 1)[1])
+    said = r.events[-1][1]
     assert (said["kind"], said["code"], said["params"]) == ("unavailable", "model.unavailable", {})
     # the log says what failed (round 4, finding 3), never what the model server said back
     assert any(r.getMessage().startswith("chat stream failed: model backend unreachable (") for r in caplog.records)
 
 
 def test_a_model_servers_answer_stays_out_of_the_log(make_client, caplog):
-    with make_client(fake_backend(chat_status=500)) as c, c.stream("POST", "/v1/chat", json={**REQ, "stream": True}) as r:
-        r.read()
+    with make_client(fake_backend(chat_status=500)) as c:
+        ask(c, REQ)
     [line] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("chat stream failed")]
     assert line.startswith("chat stream failed: model backend returned HTTP 500, model ") and "{" not in line
 
 
-def test_empty_messages_rejected(make_client):
+def test_an_empty_question_is_refused(make_client):
     with make_client(fake_backend()) as c:
-        assert c.post("/v1/chat", json={"messages": []}).status_code == 422
+        assert ask(c, {"text": ""}).status_code == 422
 
 
 def test_no_cdn_docs_pages_by_default(make_client):
@@ -164,7 +161,8 @@ def test_health_unreachable_is_503(make_client):
 
 
 def endless_backend(state: dict, words: int):
-    """A llama-server that writes ``words`` words and then keeps generating until the connection closes."""
+    """A llama-server that writes ``words`` words and then keeps generating until the connection closes (*Stop*:
+    test_questions.py)."""
     import asyncio
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -184,47 +182,3 @@ def endless_backend(state: dict, words: int):
 
         return httpx.Response(200, content=body(), headers={"content-type": "text/event-stream"})
     return httpx.MockTransport(handler)
-
-
-@pytest.mark.parametrize("words, stop_after", [(0, "status"), (2, "delta")])
-def test_closing_the_connection_stops_the_model(words, stop_after):
-    """*Stop* (docs/design/chat-ui.md §5): the browser closes the request. The gateway notices at once, also
-    before the first word while the model reads, and closes its own connection to llama-server."""
-    import anyio
-
-    state: dict = {}
-    app = create_app(LlamaServerClient(LLMSettings(base_url="http://llm"), transport=endless_backend(state, words)),
-                     load_documents=False, auth=Authenticator.disabled())
-
-    async def ask() -> list[str]:
-        gone = anyio.Event()
-        events: list[str] = []
-        body = json.dumps({**REQ, "stream": True}).encode()
-        sent_body = False
-
-        async def receive():
-            nonlocal sent_body
-            if not sent_body:
-                sent_body = True
-                return {"type": "http.request", "body": body, "more_body": False}
-            await gone.wait()
-            return {"type": "http.disconnect"}
-
-        async def send(message):
-            if message["type"] == "http.response.body" and message.get("body"):
-                events.extend(line[7:] for line in message["body"].decode().split("\n") if line.startswith("event: "))
-                if stop_after in events and events.count("delta") >= (2 if stop_after == "delta" else 0):
-                    gone.set()  # the person pressed Stop
-
-        scope = {"type": "http", "asgi": {"version": "3.0", "spec_version": "2.4"}, "http_version": "1.1",
-                 "method": "POST", "scheme": "http", "path": "/v1/chat", "raw_path": b"/v1/chat", "query_string": b"",
-                 "root_path": "", "headers": [(b"content-type", b"application/json"), (b"host", b"test")],
-                 "client": ("127.0.0.1", 1), "server": ("test", 80)}
-        with anyio.fail_after(10):  # without the stop, the fake model would write for an hour
-            await app(scope, receive, send)
-        return events
-
-    with TestClient(app) as c:  # runs the app's start-up, then the request on the same event loop
-        events = c.portal.call(ask)
-    assert state.get("closed")  # llama-server's connection was closed: it stops generating
-    assert "done" not in events and "error" not in events
