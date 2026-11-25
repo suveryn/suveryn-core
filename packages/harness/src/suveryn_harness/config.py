@@ -15,8 +15,8 @@ class LLMSettings:
     default_model: str = "qwen3.8-27b"
     # How long the model may stay silent: every answer streams (suveryn-tracker#270), so this waits for its
     # first piece (a queue, reading the prompt) or for a stall, never caps an answer that is still being written.
-    # A whole-document summary of a 60-page deed took ~60 s to begin in the benchmark; 300 s leaves room for
-    # a queue of several requests.
+    # A whole-document summary of a 60-page deed took ~60 s in the benchmark; 300 s leaves room for a queue
+    # of several requests before the first piece.
     timeout_s: float = 300.0
 
     @classmethod
