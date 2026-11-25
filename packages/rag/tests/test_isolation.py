@@ -93,6 +93,16 @@ def test_a_reading_error_is_reported_and_the_reader_carries_on(reader):
     assert reader.extract(Path("next.pdf")).pages == 1
 
 
+def test_a_crash_report_is_taken_only_in_its_shape(reader):
+    """The reader is untrusted: what it says of a crash reaches the log and the API only as a Python name and places
+    in the shape `unplanned` writes; a forged line or a quote becomes "?", and that reader is replaced (the review of
+    #268)."""
+    with pytest.raises(ReaderCrashed) as e:
+        reader.extract(Path("hostile.pdf"))
+    assert (e.value.kind, e.value.where) == ("?", "?")
+    assert reader.extract(Path("next.pdf")).pages == 1
+
+
 def test_a_reader_that_cant_start_fails_at_start_up(tmp_path):
     with pytest.raises(ExtractionFailed, match="didn't start: ModuleNotFoundError"):
         IsolatedExtractor(RagSettings(work_dir=tmp_path), command=[*FAKE, "broken"])

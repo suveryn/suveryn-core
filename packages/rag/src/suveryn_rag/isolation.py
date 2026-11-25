@@ -233,7 +233,10 @@ class IsolatedExtractor:
                     watch.report(progress)
                 r = self._receive(deadline, too_slow, watch)
             if not r.get("ok") and r.get("crashed"):  # nobody planned for it: its type and where, never its message
-                raise ReaderCrashed(str(r["crashed"])[:100], str(r.get("where") or "?")[:300])
+                kind, where = _crash_from_json(r["crashed"], r.get("where"))
+                if "?" in (kind, where):
+                    self._stop()  # a report not in its shape: a reader that sends one isn't trusted with the next document
+                raise ReaderCrashed(kind, where)
             if not r.get("ok"):
                 detail = r.get("detail") if isinstance(r.get("detail"), dict) else {}
                 raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300], str(r.get("code") or "document.unreadable"),
@@ -261,6 +264,19 @@ def _progress_from_json(data) -> Progress | None:
         return None
     n = lambda v: v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100_000 else None
     return Progress(data["step"], n(data.get("done")), n(data.get("total")))
+
+
+# What a reader may say of a crash: a Python name, and places as `unplanned` writes them ("pdf.py:12 parse < …").
+# The reader is untrusted (a document may have taken it over): anything else is "?", never written to the log.
+_KIND = re.compile(r"[A-Za-z_][A-Za-z0-9_.]{0,99}")
+_PLACE = re.compile(r"[\w.<>-]{1,100}:\d{1,7} [\w.<>]{1,100}")
+
+
+def _crash_from_json(kind, where) -> tuple[str, str]:
+    """A crash the reader sent, as the gateway logs it: its type and its places, each only if it has their shape."""
+    places = where.split(" < ") if isinstance(where, str) and len(where) <= 1000 else []
+    return (kind if isinstance(kind, str) and _KIND.fullmatch(kind) else "?",
+            " < ".join(places) if places and all(_PLACE.fullmatch(p) for p in places) else "?")
 
 
 def make_extractor(settings: RagSettings):

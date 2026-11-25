@@ -1,7 +1,7 @@
 """A stand-in for the document reader process (suveryn_rag.isolation), for test_isolation.py.
 
 Runs the real reader loop (``serve``) with a fake extraction. The file name asks for a behaviour:
-crash, hang, garbage, env (report the names of PATH and SUVERYN_* variables), a spreadsheet's passages
+crash, hang, garbage, hostile (a forged crash report), env (report the names of PATH and SUVERYN_* variables), a spreadsheet's passages
 (prices.xlsx), malformed passages (bad.xlsx), progress (three OCR pages reported, then the document),
 slow (reports a page, then takes a minute), locked (a protected PDF), anything else: a one-page document.
 """
@@ -25,6 +25,12 @@ def fake_extract(pdf: Path, watch: Watch | None = None) -> Extraction:
         os._exit(139)  # like a segfault in a native parser
     if pdf.stem == "hang":
         time.sleep(60)
+    if pdf.stem == "hostile":  # a reader a document took over: a crash report that would forge a log line and quote it
+        import json
+        answers.write(json.dumps({"ok": False, "crashed": "ValueError\nINFO forged line",
+                                  "where": "Purchase price 385,000 euro, plot 123"}).encode() + b"\n")
+        answers.flush()
+        return None
     if pdf.stem == "garbage":
         answers.write(b"\x80\x81 not json\n")
         answers.flush()
