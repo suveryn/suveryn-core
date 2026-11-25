@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 
 from suveryn_harness.checks import evaluate
 from suveryn_harness.facts import RunFact, option_of
+from suveryn_harness.messages import unplanned
 from suveryn_playbooks import Playbook, Step, entry, root
 from suveryn_playbooks.paths import MAX_ENTRIES, split
 from suveryn_playbooks.conditions import parse_when
@@ -461,7 +462,8 @@ class Runtime:
                                                     {"playbook": playbook.id, "version": run.playbook_version, "run": run.id})
             self.store.set_result(rid, document_id)
         except Exception as e:  # noqa: BLE001 - the confirmation stands; the document can be made again
-            log.error("playbook result not stored: %s", type(e).__name__)
+            ref, where = unplanned(e)
+            log.error("playbook result not stored: internal %s: %s at %s", ref, type(e).__name__, where)
 
     def _say(self, run: Run, playbook: Playbook, step_id: str | None, meta: dict) -> None:
         """A playbook turn: its meaning, no text."""
