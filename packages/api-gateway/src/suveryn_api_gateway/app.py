@@ -96,7 +96,6 @@ from .routes.common import (
 from .usage import UsageSettings, UsageStore
 
 # Names other modules and the tests take from here; the routes own them now.
-_delete_case_everywhere = delete_case_everywhere
 __all__ = ["ADMIN_ROLE", "LOCAL_OWNER", "MAX_UPLOAD_BYTES", "DocumentNotFound", "Scope", "SearchUnavailable",
            "UploadRejected", "create_app", "owner_of"]
 

@@ -83,8 +83,7 @@ def test_every_answer_of_users_is_what_the_description_says():
                   ("PUT", "/v1/admin/users/{sub}/enabled", f"/v1/admin/users/{CAROL}/enabled", {"json": {"enabled": False}}),
                   ("POST", "/v1/admin/users/{sub}/password", f"/v1/admin/users/{CAROL}/password", {}),
                   ("POST", "/v1/admin/users/{sub}/sign-out", f"/v1/admin/users/{CAROL}/sign-out", {}),
-                  ("POST", "/v1/admin/users/{sub}/two-step", f"/v1/admin/users/{CAROL}/two-step", {}),
-                  ("DELETE", "/v1/users/{sub}/avatar", f"/v1/users/{BOB}/avatar", {})]
+                  ("POST", "/v1/admin/users/{sub}/two-step", f"/v1/admin/users/{CAROL}/two-step", {})]
     anyone = [("GET", "/v1/users", None, {}), ("GET", "/v1/users/departed", None, {}), ("DELETE", "/v1/me/avatar", None, {}),
               ("PUT", "/v1/me/avatar", None, {"content": b"an image"}), ("GET", "/v1/users/{sub}/avatar", f"/v1/users/{BOB}/avatar", {})]
 
@@ -166,7 +165,6 @@ def test_every_answer_of_users_is_what_the_description_says():
         assert check("PUT", "/v1/me/avatar", 413, keep="picture_too_large", content=b"x" * (2 * 1024 * 1024 + 1),
                      headers={**user, **octets}).json()["code"] == "user.picture_too_large"
         check("DELETE", "/v1/me/avatar", 204, headers=user)
-        check("DELETE", "/v1/users/{sub}/avatar", 204, f"/v1/users/{BOB}/avatar", headers=admin)
         check.kept.check()
         # not seen here, each for a reason: what nobody planned for (500); sign-in, the directory or a store down
         # (503: test_users.py, test_auth.py); the 422 FastAPI gives an operation whose only input is an id in the

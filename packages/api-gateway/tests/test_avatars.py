@@ -139,13 +139,12 @@ def test_a_person_sets_sees_and_removes_their_picture_and_colleagues_see_it(offi
     # not a picture, too large
     assert (lambda r: (r.status_code, r.json()["code"]))(c.put("/v1/me/avatar", content=b"%PDF-1.7", headers={**alice, "Content-Type": "application/pdf"})) == (415, "user.picture_unreadable")
     assert (lambda r: (r.status_code, r.json()["code"]))(c.put("/v1/me/avatar", content=b"x", headers={**alice, "Content-Length": str(3 * 1024 * 1024)})) == (413, "user.picture_too_large")
-    # removal: the person's own, and an administrator's of anyone's; a colleague can't remove someone else's
-    assert c.delete(f"/v1/users/{ALICE}/avatar", headers=bob).status_code == 403
+    # removal: the person's own only; nobody removes someone else's, an administrator included
     assert c.delete("/v1/me/avatar", headers=alice).status_code == 204
     assert c.get(f"/v1/users/{ALICE}/avatar", headers=bob).status_code == 404
     c.put("/v1/me/avatar", content=picture(), headers={**bob, "Content-Type": "image/jpeg"})
-    assert c.delete(f"/v1/users/{BOB}/avatar", headers=admin_headers(kc)).status_code == 204
-    assert c.get(f"/v1/users/{BOB}/avatar", headers=alice).status_code == 404
+    assert c.delete(f"/v1/users/{BOB}/avatar", headers=admin_headers(kc)).status_code == 405
+    assert c.get(f"/v1/users/{BOB}/avatar", headers=alice).status_code == 200
     assert c.get(f"/v1/users/{uuid.uuid4()}/avatar", headers=alice).status_code == 404
 
 

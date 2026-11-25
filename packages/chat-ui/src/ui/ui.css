@@ -448,20 +448,6 @@
                                       font-variant-numeric: tabular-nums; }
 .ui-chart-tip-total { border-top: 1px solid var(--line); padding-top: 2px; margin-top: 2px; }
 
-/* bars for comparison: label, bar, total */
-.ui-chart-bars { display: flex; flex-direction: column; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
-.ui-chart-bar-row { display: grid; grid-template-columns: minmax(6rem, 12rem) 1fr auto; align-items: center;
-                    gap: var(--space-3); font-size: var(--text-ui-sm); }
-.ui-chart-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ui-chart-bar-track { display: flex; height: 16px; }
-.ui-chart-bar-track .ui-chart-stack { display: flex; height: 100%; overflow: hidden; border-radius: 0 2px 2px 0; }
-.ui-chart-bar-track .ui-chart-segment + .ui-chart-segment { border-left: 1px solid var(--bg); }
-.ui-chart-bar-value { font-variant-numeric: tabular-nums; color: var(--text-dim); min-width: 4.5em; text-align: right; }
-@media (max-width: 600px) {
-  .ui-chart-bar-row { grid-template-columns: 1fr auto; row-gap: var(--space-1); }
-  .ui-chart-bar-track { grid-column: 1 / -1; grid-row: 2; }
-}
-
 /* the same numbers as a table */
 .ui-chart-table-wrap { overflow-x: auto; }
 .ui-chart-table { width: 100%; border-collapse: collapse; font-size: var(--text-ui-sm); font-variant-numeric: tabular-nums; }
