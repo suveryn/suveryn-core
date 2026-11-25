@@ -1,0 +1,10 @@
+# zizmor (https://docs.zizmor.sh), run by CI's lint job: the common checks on a workflow's permissions, kept
+# tokens, injected expressions and triggers. .github/scripts/workflow_privileges.py adds the one rule zizmor
+# has no audit for: a job that can write runs no project code.
+rules:
+  unpinned-uses:
+    # Actions are pinned by version tag, as in every sūveryn repository; pinning them by commit is a decision
+    # for all repositories at once, not this file's.
+    config:
+      policies:
+        "*": ref-pin
