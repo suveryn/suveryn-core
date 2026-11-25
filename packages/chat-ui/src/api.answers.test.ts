@@ -57,6 +57,18 @@ describe("an answer as a stream", () => {
     expect(sent).toEqual([asked("POST", `/v1/conversations/${ID}/questions`, QUESTION)]);
   });
 
+  it("that can't reach the gateway, or whose connection breaks while it comes, says so in the reader's language", async () => {
+    gatewayAnswers(new TypeError("Failed to fetch"));
+    const away = await failure(ask());
+    expect([away instanceof TypeError, away.message]).toEqual([true, t().serverUnreachable]);
+    const first = new TextEncoder().encode(`event: delta\ndata: ${JSON.stringify({ text: "De prijs" })}\n\n`);
+    const breaking = new ReadableStream({ start(c) { c.enqueue(first); }, pull(c) { c.error(new TypeError("network error")); } });
+    gatewayAnswers(new Response(breaking, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+    const words: string[] = [];
+    const broken = await failure(ask({ onDelta: (text) => words.push(text) }));
+    expect([broken instanceof TypeError, broken.message, words]).toEqual([true, t().streamCutOff, ["De prijs"]]);
+  });
+
   it("of a model that thinks first gives its reasoning apart, as it comes, never in the answer's words", async () => {
     gatewayAnswers(stream(answers.stream_thorough.body));
     const [thought, words]: [string[], string[]] = [[], []];

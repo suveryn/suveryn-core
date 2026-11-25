@@ -102,11 +102,11 @@ describe("an administrator sets the appliance's clock", () => {
     expect(await applianceClockAnswer("0123456789abcdef")).toEqual(answers.set.body);
   });
 
-  it("no network is the browser's own failure, as before", async () => {
+  it("no network is still a TypeError, said in the reader's language, never the browser's English", async () => {
     gatewayAnswers(new TypeError("Failed to fetch"));
     const e = await failure(setApplianceClock(measured));
     expect(e).toBeInstanceOf(TypeError);
-    expect(e.message).toBe("Failed to fetch");
+    expect(e.message).toBe(t().serverUnreachable);
   });
 });
 
