@@ -41,6 +41,16 @@ class Watch:
             raise Cancelled
 
 
+class ReaderCrashed(Exception):
+    """The isolated reader failed while it read, in a way nobody planned for: what it sent instead of an exception's
+    message, which may quote the document, is its type (``kind``) and where it was raised (``where``). The service
+    fails the job as ``system.internal`` with a reference logged with them, as any unplanned failure is."""
+
+    def __init__(self, kind: str, where: str):
+        super().__init__(kind)
+        self.kind, self.where = kind, where
+
+
 class Unreadable(ValueError):
     """The document can't be read. ``code`` is a refusal of the registry's ``document`` area
     (suveryn_harness/messages.json), with ``detail``'s numbers as its parameters (``pages``, ``max``,

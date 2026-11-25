@@ -13,6 +13,7 @@ pytest.importorskip("docling_core")
 
 from suveryn_rag.config import RagSettings
 from suveryn_rag.isolation import ExtractionFailed, IsolatedExtractor, child_env
+from suveryn_rag.reading import ReaderCrashed
 
 FAKE = [sys.executable, "-I", str(Path(__file__).with_name("fake_reader.py"))]
 
@@ -84,10 +85,11 @@ def test_garbage_from_the_reader_is_refused_and_the_reader_replaced(reader):
 
 
 def test_a_reading_error_is_reported_and_the_reader_carries_on(reader):
-    with pytest.raises(ExtractionFailed) as e:
+    with pytest.raises(ReaderCrashed) as e:
         reader.extract(Path("fails.pdf"))
-    # only the exception's type: its message may quote the document, and it reaches the API (code review of 25 November)
-    assert str(e.value) == "ValueError" and "no pages" not in str(e.value)
+    # nobody planned for it: its type and where it was raised, never its message, which may quote the document
+    assert (e.value.kind, "no pages" in str(e.value) + e.value.where) == ("ValueError", False)
+    assert "fake_reader.py" in e.value.where and "fails" not in e.value.where.replace("fake_reader", "")
     assert reader.extract(Path("next.pdf")).pages == 1
 
 
@@ -262,13 +264,13 @@ def test_a_cancelled_document_stops_the_reader_at_once_and_the_next_one_is_read(
 def test_a_reason_comes_with_its_code_and_numbers(reader, tmp_path):
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("locked.pdf"))
-    assert e.value.code == "document.password_protected" and "password" in str(e.value)
+    assert e.value.code == "document.password_protected" and str(e.value) == "the PDF is protected with a password"
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("big.pdf"))
     assert e.value.code == "document.pages_too_many" and e.value.detail == {"pages": 900, "max": 500}
     with pytest.raises(ExtractionFailed) as e:
-        reader.extract(Path("fails.pdf"))
-    assert e.value.code == "document.unreadable"  # no code from the reader: the generic one
+        reader.extract(Path("env.pdf"))
+    assert e.value.code == "document.unreadable"  # a reason with no code of its own: the generic one
     with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("crash.pdf"))
     assert e.value.code == "document.damaged"

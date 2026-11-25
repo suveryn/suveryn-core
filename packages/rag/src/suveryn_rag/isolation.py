@@ -54,10 +54,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import IO
 
+from suveryn_harness.messages import unplanned
+
 from .config import RagSettings
 from .extract import Extraction
 from .formats import Passage
-from .reading import Cancelled, Progress, Unreadable, Watch
+from .reading import Cancelled, Progress, ReaderCrashed, Unreadable, Watch
 
 STARTUP_TIMEOUT_S = 600          # loading Docling's models: 20-40 s on a GPU, longer on a CPU
 CANCEL_CHECK_S = 0.25            # how often a cancel request is looked at while the reader works
@@ -230,6 +232,8 @@ class IsolatedExtractor:
                 if watch is not None and (progress := _progress_from_json(r["progress"])) is not None:
                     watch.report(progress)
                 r = self._receive(deadline, too_slow, watch)
+            if not r.get("ok") and r.get("crashed"):  # nobody planned for it: its type and where, never its message
+                raise ReaderCrashed(str(r["crashed"])[:100], str(r.get("where") or "?")[:300])
             if not r.get("ok"):
                 detail = r.get("detail") if isinstance(r.get("detail"), dict) else {}
                 raise ExtractionFailed(str(r.get("error") or "the document couldn't be read")[:300], str(r.get("code") or "document.unreadable"),
@@ -292,11 +296,11 @@ def serve(extract: Callable[..., Extraction], requests: IO[bytes], answers: IO[b
             send({"ok": True, "document": doc, "pages": ex.pages, "ocr_pages": ex.ocr_pages,
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
                   "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
+        except Unreadable as e:  # a reason the reader knows: its own sentence, its code and numbers
+            send({"ok": False, "error": str(e)[:200], "code": e.code, "detail": e.detail})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
-            # A reason the reader knows is its own sentence; anything else only its type: the message of an exception
-            # raised while a document is read may quote it, and this reaches the API (the code review of 25 November).
-            send({"ok": False, "error": str(e)[:200] if isinstance(e, Unreadable) else type(e).__name__,
-                  "code": getattr(e, "code", "document.unreadable"), "detail": getattr(e, "detail", {})})
+            # nobody planned for it: its type and where it was raised, never its message, which may quote the document
+            send({"ok": False, "crashed": type(e).__name__, "where": unplanned(e)[1]})
 
 
 def protocol_streams() -> tuple[IO[bytes], IO[bytes]]:
@@ -339,7 +343,7 @@ def main() -> None:
         own_workspace(settings.work_dir)
         extractor = Extractor(settings)
     except Exception as e:  # noqa: BLE001 - reported to the gateway, which fails its start-up
-        answers.write(json.dumps({"ready": False, "error": f"{type(e).__name__}: {str(e)[:200]}"}).encode() + b"\n")
+        answers.write(json.dumps({"ready": False, "error": type(e).__name__}).encode() + b"\n")  # never its message
         answers.flush()
         raise SystemExit(1) from None
     serve(extractor.extract, requests, answers)

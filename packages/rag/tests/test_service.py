@@ -185,7 +185,7 @@ def test_other_files_are_refused_and_leave_nothing_behind(tmp_path, name, head, 
 
 
 # ------------------------------------------------------------------ progress, cancelling, reasons (chat-ui.md §5)
-from suveryn_rag.reading import Progress, Unreadable
+from suveryn_rag.reading import Progress, ReaderCrashed, Unreadable
 
 
 class WatchedIngest:
@@ -242,13 +242,26 @@ def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     assert out["failure"] == {"kind": "refused", "code": "document.pages_too_many", "params": {"pages": 900, "max": 500}}  # nothing was read
     assert "error_code" not in out and "error_detail" not in out  # one way to say it: the registry's code
     assert out["error"] == "the document has 900 pages; at most 500 can be read"  # the English sentence stays for the API
-    docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("Koopprijs 385.000 euro, perceel 123")))  # fictional
+    docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("Purchase price 385,000 euro, plot 123")))  # fictional
     other = docs2.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: other.status == "failed")
     assert other.public()["error"] == "RuntimeError"  # only its type: the message may quote the document
     failure = other.public()["failure"]  # a crash nobody planned for: internal, with the reference its log line has
     assert (failure["kind"], failure["code"]) == ("internal", "system.internal") and re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", failure["params"]["ref"])
     assert "error_ref" not in other.public()
+
+
+def test_a_crash_in_the_reader_is_internal_with_a_reference_its_log_line_has(tmp_path, caplog):
+    """The isolated reader, by default on an appliance, failed while it read in a way nobody planned for: the job fails
+    as system.internal with a reference, never as a file that can't be read, and the log has the reference with the
+    reader's exception type and where it was raised (the review of #268)."""
+    docs = running(tmp_path, WatchedIngest(fails=ReaderCrashed("ValueError", "pdf.py:12 parse < isolation.py:290 serve")))
+    job = docs.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
+    assert wait(lambda: job.status == "failed")
+    out = job.public()
+    assert (out["failure"]["kind"], out["failure"]["code"], out["error"]) == ("internal", "system.internal", "ValueError")
+    line = next(r.getMessage() for r in caplog.records if out["failure"]["params"]["ref"] in r.getMessage())
+    assert line.endswith("ValueError at pdf.py:12 parse < isolation.py:290 serve (in the reader)")
 
 
 def test_a_document_read_again_after_a_lost_connection_is_staged_again(tmp_path, monkeypatch):

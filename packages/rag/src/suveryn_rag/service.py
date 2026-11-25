@@ -64,7 +64,7 @@ from suveryn_harness.messages import Problem, message, unplanned
 
 from .config import RagSettings
 from .formats import SUFFIX, kind_of, looks_like
-from .reading import Cancelled, Progress, Unreadable, Watch
+from .reading import Cancelled, Progress, ReaderCrashed, Unreadable, Watch
 from .store import Scope
 from .naming import named_document
 
@@ -310,7 +310,10 @@ def _crashed(e: Exception) -> str:
     """A reference for a reading that failed in a way nobody planned for, logged with the exception's type and where
     it was raised, never its message, which may name the file or quote it (the decision of 12 November, rule 5)."""
     ref, where = unplanned(e)
-    log.error("document failed: internal %s: %s at %s", ref, type(e).__name__, where)
+    if isinstance(e, ReaderCrashed):  # it failed in the reader: its type and place, as the reader sent them
+        log.error("document failed: internal %s: %s at %s (in the reader)", ref, e.kind, e.where)
+    else:
+        log.error("document failed: internal %s: %s at %s", ref, type(e).__name__, where)
     return ref
 
 
@@ -427,7 +430,7 @@ class DocumentService:
                 return
             # A reason sūveryn knows is its own sentence; anything else only the exception's type: its message may
             # quote the document or name the file, and the job's `error` reaches the API (the code review of 25 November).
-            job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else type(e).__name__
+            job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else e.kind if isinstance(e, ReaderCrashed) else type(e).__name__
             if isinstance(e, Unreadable):
                 job.error_code, job.error_detail = e.code, e.detail
             else:  # nobody planned for it: a reference for the person, and the log line under it
