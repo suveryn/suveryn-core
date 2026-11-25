@@ -84,8 +84,10 @@ def test_garbage_from_the_reader_is_refused_and_the_reader_replaced(reader):
 
 
 def test_a_reading_error_is_reported_and_the_reader_carries_on(reader):
-    with pytest.raises(ExtractionFailed, match="ValueError: no pages"):
+    with pytest.raises(ExtractionFailed) as e:
         reader.extract(Path("fails.pdf"))
+    # only the exception's type: its message may quote the document, and it reaches the API (code review of 25 November)
+    assert str(e.value) == "ValueError" and "no pages" not in str(e.value)
     assert reader.extract(Path("next.pdf")).pages == 1
 
 

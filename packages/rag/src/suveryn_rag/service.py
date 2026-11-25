@@ -425,8 +425,9 @@ class DocumentService:
                 job.status = "queued"
                 self._queue.put((job, path), first=True)  # unpacked now: read from the file
                 return
-            # A reason sūveryn knows is its own sentence; anything else names the exception (for the log).
-            job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else f"{type(e).__name__}: {str(e)[:200]}"
+            # A reason sūveryn knows is its own sentence; anything else only the exception's type: its message may
+            # quote the document or name the file, and the job's `error` reaches the API (the code review of 25 November).
+            job.status, job.error = "failed", str(e)[:200] if isinstance(e, Unreadable) else type(e).__name__
             if isinstance(e, Unreadable):
                 job.error_code, job.error_detail = e.code, e.detail
             else:  # nobody planned for it: a reference for the person, and the log line under it

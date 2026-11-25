@@ -145,7 +145,8 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   a reason the reader knows is **refused** (`document.password_protected`, `document.pages_too_many` with `pages` and `max`
   …: nothing was read, the person gives another file), and a crash nobody planned for is **internal**:
   `system.internal` with a reference, logged with the exception's type and where it was raised, never its message.
-  The English `error` stays beside it for developers.
+  The English `error` stays beside it for developers: the reader's own sentence for a reason it knows, only the
+  exception's type for anything else, whose message may quote the document.
 - **What a reading noticed is a warning of the registry** (#152). The document was read and something should be
   checked: `document.page_coverage_low`, `document.layout_failed`, `document.instruction_like_text`,
   `document.text_recovered`, `document.text_layer_recovered`, `document.header_footer_recovered`, each with its `page`.

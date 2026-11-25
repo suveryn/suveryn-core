@@ -293,8 +293,10 @@ def serve(extract: Callable[..., Extraction], requests: IO[bytes], answers: IO[b
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
                   "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
         except Exception as e:  # noqa: BLE001 - reported to the gateway; the reader carries on
-            send({"ok": False, "error": f"{type(e).__name__}: {str(e)[:200]}", "code": getattr(e, "code", "document.unreadable"),
-                  "detail": getattr(e, "detail", {})})
+            # A reason the reader knows is its own sentence; anything else only its type: the message of an exception
+            # raised while a document is read may quote it, and this reaches the API (the code review of 25 November).
+            send({"ok": False, "error": str(e)[:200] if isinstance(e, Unreadable) else type(e).__name__,
+                  "code": getattr(e, "code", "document.unreadable"), "detail": getattr(e, "detail", {})})
 
 
 def protocol_streams() -> tuple[IO[bytes], IO[bytes]]:

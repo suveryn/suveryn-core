@@ -30,7 +30,8 @@ def fake_extract(pdf: Path, watch: Watch | None = None) -> Extraction:
         answers.flush()
         return None
     if pdf.stem == "env":
-        raise RuntimeError(" ".join(sorted(k for k in os.environ if k.startswith("SUVERYN_") or k == "PATH")))
+        # what the reader's environment holds, as a reason the reader gives (an exception's message never comes through)
+        raise Unreadable(" ".join(sorted(k for k in os.environ if k.startswith("SUVERYN_") or k == "PATH")))
     if pdf.stem == "fails":
         raise ValueError("no pages")
     if pdf.stem == "locked":

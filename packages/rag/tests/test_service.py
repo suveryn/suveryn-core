@@ -77,7 +77,7 @@ def test_a_document_that_keeps_meeting_a_lost_connection_fails_alone(tmp_path, m
     docs = running(tmp_path, FakeIngest(down=10**6, failing_reconnects=0))
     job = docs.accept_upload(io.BytesIO(b"%PDF-1.7"), "a.pdf", "user-a")
     assert wait(lambda: docs.job(job.id, "user-a").status == "failed")
-    assert job.db_retries == service.MAX_DB_RETRIES and "OperationalError" in job.error
+    assert job.db_retries == service.MAX_DB_RETRIES and job.error == "OperationalError"
     assert "db_retries" not in job.public()
 
 
@@ -242,9 +242,10 @@ def test_a_failure_carries_its_code_for_the_interface(tmp_path):
     assert out["failure"] == {"kind": "refused", "code": "document.pages_too_many", "params": {"pages": 900, "max": 500}}  # nothing was read
     assert "error_code" not in out and "error_detail" not in out  # one way to say it: the registry's code
     assert out["error"] == "the document has 900 pages; at most 500 can be read"  # the English sentence stays for the API
-    docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("boom")))
+    docs2 = running(tmp_path / "2", WatchedIngest(fails=RuntimeError("Koopprijs 385.000 euro, perceel 123")))  # fictional
     other = docs2.accept_upload(io.BytesIO(b"%PDF-1.7 a"), "a.pdf", "user-a")
     assert wait(lambda: other.status == "failed")
+    assert other.public()["error"] == "RuntimeError"  # only its type: the message may quote the document
     failure = other.public()["failure"]  # a crash nobody planned for: internal, with the reference its log line has
     assert (failure["kind"], failure["code"]) == ("internal", "system.internal") and re.fullmatch(r"[2-9A-Z]{4}-[2-9A-Z]{4}", failure["params"]["ref"])
     assert "error_ref" not in other.public()
