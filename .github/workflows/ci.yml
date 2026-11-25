@@ -4,12 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled: the label "remake the baselines" has the previews job take the screens' baselines on the
-    # runner and commit them to the branch (the previews job below); the other jobs sit that event out.
+    # labeled: the label "remake the baselines" has the baselines-take and baselines-commit jobs remake the
+    # screens' baselines on the runner and commit them to the branch; the other jobs sit that event out.
     types: [opened, synchronize, reopened, labeled]
-  workflow_dispatch:   # the previews job starts CI again by name after it commits the baselines
+  workflow_dispatch:   # baselines-commit starts CI again by name after it commits the baselines
   schedule:
     - cron: "17 5 * * 1"   # Mondays, for the dependency audit
+
+# Read-only unless a job says otherwise: only baselines-commit writes, and it runs no code from the pull request.
+permissions:
+  contents: read
 
 jobs:
   markdown:
@@ -18,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
@@ -34,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -46,12 +54,18 @@ jobs:
         # fail a pull request that changed nothing. Style rules stay off: the house style is the docs'.
         run: uvx ruff@0.16.8 check --select F,E9 --output-format github .
 
+      - name: The workflows (zizmor; its settings and why in .github/zizmor.yml)
+        # Pinned, as ruff is. Offline: the audits that would ask GitHub's API are left out.
+        run: uvx zizmor@1.33.1 --offline --no-progress .github/workflows/
+
   python:
     name: Python workspace (pytest)
     if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -64,6 +78,11 @@ jobs:
 
       - name: Sync workspace
         run: uv sync --all-packages --dev
+
+      - name: No job that can write runs project code (.github/scripts/workflow_privileges.py, and its tests)
+        run: |
+          uv run python .github/scripts/workflow_privileges.py
+          uv run pytest -q -p no:cacheprovider .github/scripts
 
       - name: Unit tests
         # Tests that need a real database or a running model skip themselves
@@ -88,6 +107,8 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=5
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
         with:
@@ -117,6 +138,8 @@ jobs:
         working-directory: packages/chat-ui
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
@@ -135,26 +158,16 @@ jobs:
     # drifts from its design board fails here, with the new shot and the diff as an artifact
     # (packages/chat-ui/scripts/previews-shoot.mjs; the README's "Screen previews").
     #
-    # A screenshot depends on the machine that takes it (its browser build, fonts, text rendering), so a
-    # baseline is made here and nowhere else: the label "remake the baselines" on a pull request, once its
-    # screens agree with their design boards, has this job take them all, commit src/preview/baseline/ to the
-    # branch, drop the label and start CI again.
-    #
     # Pinned: the runner moves only with the baselines; ubuntu-latest (26.04) has no Chromium for Playwright.
     runs-on: ubuntu-24.04
-    if: github.event.action != 'labeled' || github.event.label.name == 'remake the baselines'
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
+    if: github.event.action != 'labeled'
     defaults:
       run:
         working-directory: packages/chat-ui
     steps:
       - uses: actions/checkout@v5
         with:
-          # The branch itself when the baselines are to be committed to it; otherwise the usual merge commit.
-          ref: ${{ github.event.action == 'labeled' && github.event.pull_request.head.ref || '' }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
@@ -166,7 +179,6 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: The screens against their baselines
-        if: github.event.action != 'labeled'
         run: npm run previews:check
 
       - name: The changed screens, for the review
@@ -178,28 +190,121 @@ jobs:
           include-hidden-files: true   # .previews is a hidden folder, which the action skips by default
           if-no-files-found: ignore
 
-      - name: The baselines, remade on the runner and committed to the branch
-        if: github.event.action == 'labeled'
+  # A screenshot depends on the machine that takes it (its browser build, fonts, text rendering), so a baseline
+  # is made on this runner and nowhere else. The label "remake the baselines" on a pull request, once its screens
+  # agree with their design boards, runs the two jobs below. They are split because the pull request's code
+  # (npm ci with its install scripts, Playwright, our scripts) must never run where a token can write
+  # (suveryn-tracker#252):
+  #   baselines-take    the pull request's code, read-only: photographs every screen at the labelled commit
+  #                     and hands the shots over as an artifact.
+  #   baselines-commit  runs nothing from the pull request: checks every file of the artifact, commits them to
+  #                     src/preview/baseline/ only if the branch is still at the commit photographed, drops the
+  #                     label and starts CI again.
+  baselines-take:
+    name: chat-ui (the baselines, taken on the runner)
+    runs-on: ubuntu-24.04   # the same runner as the previews job, which compares against these
+    if: github.event.action == 'labeled' && github.event.label.name == 'remake the baselines'
+    defaults:
+      run:
+        working-directory: packages/chat-ui
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}   # the commit that was labelled, not the merge commit
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: packages/chat-ui/package-lock.json
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run previews:update
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baselines
+          path: packages/chat-ui/src/preview/baseline/
+          if-no-files-found: error
+          retention-days: 1
+
+  baselines-commit:
+    name: chat-ui (the baselines, committed to the branch)
+    needs: baselines-take
+    # A pull request from a fork gets a read-only token anyway; this job is for the repository's own branches.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # the commit to the pull request's branch
+      pull-requests: write   # dropping the label
+      actions: write         # starting CI again: a push with this token starts no workflow
+    env:
+      BASELINE: packages/chat-ui/src/preview/baseline
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: baselines
+          path: ${{ runner.temp }}/shots
+
+      - name: Every file of the artifact is a screenshot, or nothing is committed
+        # Only <id>.png at the top level, as previews-shoot.mjs names them: no folder, no link, no hidden or other
+        # name, a PNG's first bytes, at most 2 MB each, 1,000 files and 100 MB in all.
         env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-          PR: ${{ github.event.pull_request.number }}
+          SHOTS: ${{ runner.temp }}/shots
         run: |
-          npm run previews:update
-          gh pr edit "$PR" --remove-label "remake the baselines"
-          git add src/preview/baseline
+          cd "$SHOTS"
+          bad=$(find . -mindepth 1 \( -type l -o -type d -o ! -type f \) -print)
+          [ -z "$bad" ] || { echo "::error::not a plain file: $bad"; exit 1; }
+          shopt -s dotglob nullglob
+          count=0; total=0
+          for name in *; do
+            [[ "$name" =~ ^[a-z0-9][a-z0-9-]*\.png$ ]] || { echo "::error::unexpected name: $name"; exit 1; }
+            [ "$(head -c 8 "$name" | od -An -tx1 | tr -d ' \n')" = "89504e470d0a1a0a" ] || { echo "::error::not a PNG: $name"; exit 1; }
+            size=$(stat -c %s "$name")
+            [ "$size" -le 2097152 ] || { echo "::error::larger than 2 MB: $name"; exit 1; }
+            count=$((count + 1)); total=$((total + size))
+          done
+          [ "$count" -ge 1 ] && [ "$count" -le 1000 ] && [ "$total" -le 104857600 ] \
+            || { echo "::error::$count files, $total bytes: outside the limits"; exit 1; }
+          echo "$count screenshots, $total bytes"
+
+      - uses: actions/checkout@v5   # zizmor: ignore[artipacked] the token stays for the push below; nothing of the pull request runs here
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          # Only the baselines' folder on disk: nothing else of the pull request is there to run.
+          sparse-checkout: packages/chat-ui/src/preview/baseline
+          sparse-checkout-cone-mode: false
+
+      - name: The baselines, committed to the branch if it is still at the photographed commit
+        env:
+          SHOTS: ${{ runner.temp }}/shots
+        run: |
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label "remake the baselines"
+          # The folder must be the folder itself: a link in the pull request could point the copy elsewhere.
+          [ "$(realpath -e "$BASELINE")" = "$GITHUB_WORKSPACE/$BASELINE" ] || { echo "::error::$BASELINE is not a plain folder"; exit 1; }
+          find "$BASELINE" -maxdepth 1 -name "*.png" -delete
+          cp -- "$SHOTS"/*.png "$BASELINE"/
+          git add -A -- "$BASELINE"
           if git diff --cached --quiet; then
             echo "The baselines already match the screens; nothing to commit."
             exit 0
           fi
+          outside=$(git diff --cached --name-only | grep -v "^$BASELINE/[^/]*\.png$" || true)
+          [ -z "$outside" ] || { echo "::error::a change outside the baselines: $outside"; exit 1; }
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             commit -q -m "Screens: the baselines, remade on the runner" \
-            -m "Taken by CI's previews job on $BRANCH (the label \"remake the baselines\" on #$PR, run ${{ github.run_id }})."
-          git push origin "HEAD:$BRANCH"
-          # A push with the workflow's own token starts no workflow, so CI is asked for by name. That needs
-          # workflow_dispatch in main's ci.yml; until it is there (the first time), a push to the branch does it.
-          gh workflow run ci.yml --ref "$BRANCH" \
-            || echo "::warning::CI could not be started by name (main's ci.yml has no workflow_dispatch yet); push to the branch to run it."
+            -m "Taken by CI on $BRANCH at $SHA: the label \"remake the baselines\" on #$PR, set by $GITHUB_ACTOR; run $GITHUB_RUN_ID."
+          now=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          [ "$now" = "$SHA" ] || { echo "::error::$BRANCH moved from $SHA to $now since the shots; set the label again"; exit 1; }
+          # Not forced: the branch takes the commit only as the next one after $SHA.
+          git push origin "HEAD:refs/heads/$BRANCH"
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
 
   dependencies:
     name: Known vulnerabilities in the locked dependencies
@@ -208,6 +313,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v7
         with:
