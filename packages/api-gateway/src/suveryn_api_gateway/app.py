@@ -230,6 +230,7 @@ def create_app(client: LlamaServerClient | None = None, documents=None, *, load_
         app.state.runs = Database("playbook run", runs, None if runs is not None or not own_db or not cases_settings.database_url
                                   else (lambda: RunStore(cases_settings.database_url)))
         app.state.running = set()  # the asyncio tasks reading for a run, kept until they finish
+        app.state.reading = {}  # the same tasks by their run's id: a stop or a cancel ends the run's reading at once
         app.state.avatars = Database("avatar", avatars, None if avatars is not None or not own_db or not cases_settings.database_url
                                      else (lambda: AvatarStore(cases_settings.database_url)))
         # Administration › Users: Keycloak's accounts, as the administrator who asks (accounts.py)

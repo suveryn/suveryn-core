@@ -532,6 +532,23 @@ def test_starting_runs_shares_the_chat_rate_limit(runs):
 
 
 @needs_db
+def test_a_reading_that_ends_after_its_run_was_stopped_writes_nothing(runs):
+    """A run stopped or cancelled while it read: what the read found comes too late and is not kept."""
+    from suveryn_api_gateway.playbooks import StepState
+
+    cid = uuid.uuid4()
+    rid = uuid.UUID(runs.create(cid, DEED_INTAKE, [DOC], ALICE, None).id)
+    fact = [dict(fact_id="price", kind="amount", value="1", status="proposed", source={"kind": "none"}, by="x")]
+    runs.set_step(rid, "read", "reading", {"read": StepState(status="active")})
+    assert runs.end(rid, "stopped", ALICE)
+    assert runs.write_facts(cid, rid, "read", fact, reading=True) is False and runs.facts_for_run(rid) == []
+    other_case = uuid.uuid4()  # a run still reading keeps what it found
+    other = uuid.UUID(runs.create(other_case, DEED_INTAKE, [DOC], ALICE, None).id)
+    runs.set_step(other, "read", "reading", {"read": StepState(status="active")})
+    assert runs.write_facts(other_case, other, "read", fact, reading=True) is True and len(runs.facts_for_run(other)) == 1
+
+
+@needs_db
 def test_store_deletes_runs_with_the_case(runs):
     cid = uuid.uuid4()
     run = runs.create(cid, DEED_INTAKE, [DOC], ALICE, None, "nl", ALICE)
@@ -555,6 +572,58 @@ def test_store_deletes_runs_with_the_case(runs):
     assert runs.delete_case(cid) == 1 and runs.list(cid) == []
     assert runs.turns_of(conv) == [] and runs.fact_rows(rid) == []  # the conversation, its turns and the facts went with the case
     assert runs._execute("SELECT count(*) FROM conversations WHERE id = %s", (conv,)).fetchone()[0] == 0
+
+
+@needs_db
+@pytest.mark.parametrize("ending", ["stop", "cancel"])
+def test_a_run_stopped_while_it_reads_ends_its_reading_at_once(runs, ending):
+    """The code review of 25 November: stop or cancel left the model reading to the end, holding the card and the
+    person's place among the runs reading. Now the reading ends at once: the model call is abandoned, the place is
+    given back, and nothing it would have read is written."""
+    import asyncio
+    import threading
+
+    from suveryn_api_gateway.routes import playbooks as route
+
+    asked, abandoned, never = threading.Event(), threading.Event(), threading.Event()
+    plain = llm_transport([], text=TABLE).handler
+
+    async def busy(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/chat/completions"):
+            asked.set()
+            try:
+                while not never.is_set():  # a model that would take its time
+                    await asyncio.sleep(0.02)
+            except asyncio.CancelledError:
+                abandoned.set()  # the gateway let go of the call: llama-server ends a request whose connection closed
+                raise
+        return plain(request)
+
+    kc, cases, docs = FakeKeycloak(), FakeCases(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(busy))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=FakeConversations(), cases=cases,
+                     runs=runs, case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+    try:
+        with TestClient(app) as c:
+            alice = as_user(kc, ALICE)
+            cid = c.post("/v1/cases", json=NEW, headers=alice).json()["id"]
+            docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+            run = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={}, headers=alice).json()
+            url = RUN.format(cid=cid, rid=run["id"])
+            assert deliver(c, url, alice).json()["status"] == "reading" and asked.wait(5)
+            assert route.slots_of(app).taken  # her place among the runs reading
+            r = c.post(url + "/stop", headers=alice) if ending == "stop" else c.post(url + "/cancel", json={"reason": "wrong case"}, headers=alice)
+            assert r.status_code == 200 and r.json()["status"] == ("stopped" if ending == "stop" else "cancelled")
+            assert abandoned.wait(5)
+            for _ in range(100):
+                if not route.slots_of(app).taken:
+                    break
+                time.sleep(0.02)
+            assert not route.slots_of(app).taken and not app.state.reading
+            assert not c.get(url, headers=alice).json()["facts"] or all(f["status"] != "proposed" for f in c.get(url, headers=alice).json()["facts"])
+    finally:
+        never.set()
 
 
 @needs_db
