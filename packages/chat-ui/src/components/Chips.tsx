@@ -5,7 +5,8 @@
  */
 import { Check, CircleX, FileOutput, FileText, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
+import * as fmt from "../i18n/format";
 import { markOrigin } from "../lib/marks";
 import { Button, Dialog, FileButton, IconButton, Progress, TextButton } from "../ui";
 import { ACCEPTED_FILES } from "../lib/formats";
@@ -183,6 +184,6 @@ export function AttachmentChip({ a, onRemove, onUseAsSource, onDelete }: {
 function noticedFrom(line: string, m: ReturnType<typeof useT>): string {
   const o = markOrigin(line);
   if (!o) return "";
-  const day = o.date ? o.date.toLocaleDateString(locale(), { day: "numeric", month: "short" }).replace(/\.$/, "") : "";
+  const day = o.date ? fmt.day(o.date).replace(/\.$/, "") : "";
   return ` (${day ? m.cardNoticedFrom({ caseRef: o.caseRef, day }) : o.caseRef})`;
 }

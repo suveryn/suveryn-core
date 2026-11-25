@@ -13,8 +13,9 @@ import type { Segment, Table } from "./answer";
 import { tableRows, type AnswerExport, type SourceItem } from "./export";
 import type { OfficeText } from "./office";
 import type { Watermark } from "./watermark";
+import { date } from "../i18n/format";
 
-const DATE = (d: Date, lang: string) => d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
+const DATE = (d: Date, lang: string) => date(d, lang);
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
 /** Text as Markdown would read it literally: the characters that start formatting, escaped. */

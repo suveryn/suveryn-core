@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { applianceClockAnswer, getAdminStatus, getBackups, listAccounts, setApplianceClock, type AdminStatus as Status, type BackupStatus,
   type StatusCheck, type UsersList } from "../api";
 import { locale, useT } from "../i18n";
+import * as fmt from "../i18n/format";
 import { dayLabel } from "../lib/conversations";
 import { whole } from "../lib/usage";
 import { backupAttentions, lastKeyTestOk, sizeLabel } from "../lib/backups";
@@ -26,7 +27,7 @@ const ICON: Record<StatusCheck["id"], ReactNode> = {
 };
 const CLOCK_WARN_MS = 10_000; // as the gateway's clock.WARN_MS: codes fail from about 30 s
 
-const clock = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const clock = (iso: string) => fmt.time(iso);
 
 export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
   const m = useT();
@@ -165,7 +166,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
 /** "Last night 02:14" for the small hours of today, else "Today 14:02", "Yesterday 02:14", "3 Nov 02:14". */
 export function backupWhen(iso: string, m: ReturnType<typeof useT>): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const time = fmt.time(d);
   const now = new Date();
   const today = d.toDateString() === now.toDateString();
   return `${today && d.getHours() < 6 ? m.lastNight : dayLabel(iso)} ${time}`;
@@ -188,7 +189,7 @@ function SetClock({ offset, onDone, onOutcome }: { offset: number; onDone: () =>
   const m = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const hms = (ms: number) => new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const hms = (ms: number) => fmt.timeWithSeconds(ms);
   const now = Date.now();
   const failed = (why: string) => ({ ok: false, text: m.clockSetFailed({ why }) });
   const said = (failure: Message) => failed(messageText(failure, m));
@@ -240,6 +241,5 @@ function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
 export function keyDueLine(lastOk: string | null, m: ReturnType<typeof useT>, now: Date = new Date()): string {
   if (!lastOk) return m.keyNeverTested;
   const d = new Date(lastOk);
-  return m.keyNotTestedSince({ day: d.toLocaleDateString(locale(), { day: "numeric", month: "long",
-                                                           ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }) });
+  return m.keyNotTestedSince({ day: fmt.sameYear(d, now) ? fmt.dayLong(d) : fmt.date(d) });
 }

@@ -10,7 +10,8 @@
 import { ArrowLeft, ChartColumn, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
+import { date } from "../i18n/format";
 import type { AdminPage } from "./Admin";
 import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
 import {
@@ -146,7 +147,7 @@ export function ViewHeader({ icon, title, onBack }: { icon: React.ReactNode; tit
 
 /** The signed-in user's own usage. */
 /** "1 October 2024": where the raw usage kept begins (the retention, 24 months). */
-const keptFrom = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+const keptFrom = (iso: string) => date(iso);
 
 export function UsageView({ onBack }: { onBack: () => void }) {
   const m = useT();

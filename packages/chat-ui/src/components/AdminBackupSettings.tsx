@@ -15,6 +15,7 @@ import {
   askBackupService, type BackupDisk, type BackupRetention, type BackupSettings, type BackupStatus,
 } from "../api";
 import { locale, useT } from "../i18n";
+import * as fmt from "../i18n/format";
 import { sizeLabel } from "../lib/backups";
 import { messageText } from "../lib/messages";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../setup/recoveryKey";
@@ -26,12 +27,12 @@ import {
 const RETENTIONS: BackupRetention[] = [14, 30, 90, 365];
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
-const hourLabel = (h: number) => new Date(2026, 0, 1, h).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const hourLabel = (h: number) => fmt.time(new Date(2026, 0, 1, h));
 
 /** "Next: tonight at 02:00." The night runs from 18:00 to 06:00. */
 export function nextRunText(nextUtc: string, m: ReturnType<typeof useT>, now = new Date()): string {
   const next = new Date(nextUtc);
-  const time = next.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+  const time = fmt.time(next);
   const night = next.getHours() >= 18 || next.getHours() < 6;
   const sameDay = next.toDateString() === now.toDateString();
   if (night && (sameDay || next.getHours() < 6)) return m.backupNextTonight({ time });
@@ -71,7 +72,7 @@ export function BackUpNow({ status, onStarted }: { status: BackupStatus; onStart
     <div className="backup-now">
       <Button variant="primary" onPress={start} isDisabled={busy || !!running}><HardDrive size={14} aria-hidden /> {m.backUpNow}</Button>
       <span className="caption" role="status">
-        {running ? m.backupRunning({ since: new Date(running).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) })
+        {running ? m.backupRunning({ since: fmt.time(running) })
           : started ? m.backupStarted
           : status.settings?.next_run ? nextRunText(status.settings.next_run, m) : ""}
       </span>
@@ -350,7 +351,7 @@ export function RecoverySheet({ status, onSaved }: { status: BackupStatus; onSav
             <dt>{m.sheetAppliance}</dt><dd>{window.location.hostname}</dd>
             <dt>{m.whereBackupsAre}</dt><dd>{where}</dd>
             <dt>{t.keyFingerprint}</dt><dd className="recovery-sheet-mono">{keyFingerprint(s.recipient)}</dd>
-            <dt>{m.sheetMade}</dt><dd>{new Date().toLocaleDateString(locale(), { dateStyle: "long" })}</dd>
+            <dt>{m.sheetMade}</dt><dd>{fmt.date(new Date())}</dd>
           </dl>
           {fresh
             ? <><p>{m.sheetWithKey}</p><p className="recovery-sheet-mono recovery-sheet-key">{fresh.identity}</p></>

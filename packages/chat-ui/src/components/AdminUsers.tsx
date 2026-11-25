@@ -17,14 +17,15 @@ import {
   setAccountAdmin, setAccountEnabled, signAccountOut,
   type Account, type AccountDeletion, type AccountEvent, type AdminCase, type TemporaryPassword, type UsersList,
 } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
+import { time } from "../i18n/format";
 import { dayLabel } from "../lib/conversations";
 import { LinkButton, ActionMenu, Avatar, Button, Checkbox, DataTable, Dialog, FilterSelect, Form, NARROW, Notice, SearchField, SelectField, TextButton, TextField, useMedia, type MenuEntry, type TableColumn } from "../ui";
 
 type Filter = "on" | "off" | "all";
 type Confirm = { kind: "admin_on" | "admin_off" | "password" | "two_step" | "sign_out" | "off" | "on" | "delete"; user: Account };
 
-const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
+const timeLabel = (iso: string) => time(iso);
 const whenLabel = (iso: string) => `${dayLabel(iso)} ${timeLabel(iso)}`;
 
 export function AdminUsers({ me, consoleUrl, onLostAdministration }: { me: string; consoleUrl: string | null; onLostAdministration: () => void }) {

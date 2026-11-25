@@ -7,6 +7,7 @@ import type { Segment, Table } from "./answer";
 import { cellValue, segmentText, tableRows, type AnswerExport, type SourceItem } from "./export";
 import { excelWatermark, PAPER, SCREEN, watermarkPicture, type PictureSize } from "./excelWatermark";
 import type { Watermark } from "./watermark";
+import { date } from "../i18n/format";
 
 export type OfficeText = {
   answeredOn: (date: string) => string;      // "Answered by sūveryn on 11 October 2026"
@@ -27,7 +28,7 @@ export const OFFICE_COLOURS = {
   watermark: "CEC1DE",   // --confidential at 0.30 on white: a strictly confidential case's watermark, Word and Excel
 };
 
-const DATE = (d: Date, lang: string) => d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
+const DATE = (d: Date, lang: string) => date(d, lang);
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
 /** The answer as a Word document: question, answer (paragraphs, lists, tables), checks, sources. */

@@ -69,7 +69,7 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
   it("gives a backup's size in decimal units", () => {
     expect(sizeLabel(1_234_567_890, "en")).toBe("1.2 GB");
     expect(sizeLabel(340_000_000, "nl")).toBe("340 MB");
-    expect(sizeLabel(999, "en")).toBe("999 B");
-    expect(sizeLabel(188_432, "fr")).toBe("188 ko");  // VM check of #33: "kB" in French
+    expect(sizeLabel(999, "en")).toBe("999 byte");  // CLDR's own short unit (suveryn-tracker#129)
+    expect(sizeLabel(188_432, "fr")).toBe("188\u202fko");  // VM check of #33: "kB" in French; number and unit kept together
   });
 });

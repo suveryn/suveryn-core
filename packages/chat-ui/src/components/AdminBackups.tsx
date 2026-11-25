@@ -10,13 +10,14 @@ import { Check, CircleAlert, FileKey, Info, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getBackups, testRecoveryKey, type BackupStatus } from "../api";
 import { locale, useT } from "../i18n";
+import { day, dayAndTime } from "../i18n/format";
 import { backupState, keyTestState, sizeLabel } from "../lib/backups";
 import { messageText, type Message } from "../lib/messages";
 import { FileButton, InlineNotice, readText, TextButton } from "../ui";
 import { backupWhen } from "./AdminStatus";
 import { BackUpNow, BackupSettingsForm, RecoverySheet } from "./AdminBackupSettings";
 
-const when = (iso: string) => new Date(iso).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
+const when = (iso: string) => dayAndTime(iso);
 
 export function AdminBackups() {
   const m = useT();
@@ -92,7 +93,6 @@ export function AdminBackups() {
 function KeyTest({ status, problem, onTest }: { status: BackupStatus; problem: string | null; onTest: (files: File[]) => void }) {
   const m = useT();
   const k = keyTestState(status);
-  const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short" });
   // Board B11: the key's state in a few words, large, and "Nu testen" as a link under it.
   const value = k.kind === "testing" ? m.keyTesting : k.kind === "never" ? m.keyCardNever : k.kind === "ok" ? m.keyCardOk({ day: day(k.test.at) })
     : k.kind === "due" ? m.keyCardDue({ day: day(k.test.at) }) : k.kind === "failed" ? m.keyCardFailed

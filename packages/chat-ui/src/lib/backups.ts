@@ -4,6 +4,7 @@
  * nights since failed or didn't run.
  */
 import type { BackupStatus } from "../api";
+import { bytes } from "../i18n/format";
 
 type BackupState =
   | { kind: "unavailable" }                                  // no backup service has run (not an appliance yet)
@@ -93,10 +94,5 @@ export function lastKeyTestOk(s: BackupStatus | null): string | null {
   return t.ok ? t.at : t.last_ok ?? null;
 }
 
-/** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold; in French in octets ("188 ko"). */
-export function sizeLabel(bytes: number, locale: string): string {
-  const units = locale.startsWith("fr") ? ["o", "ko", "Mo", "Go", "To"] : ["B", "kB", "MB", "GB", "TB"];
-  let n = bytes, i = 0;
-  while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
-  return `${n.toLocaleString(locale, { maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 })} ${units[i]}`;
-}
+/** "1.2 GB", "340 MB" (fr "1,2 Go"): a backup's size, decimal units as disks are sold, in the language's own units. */
+export const sizeLabel = (n: number, locale: string): string => bytes(n, locale);

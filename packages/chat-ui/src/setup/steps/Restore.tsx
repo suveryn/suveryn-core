@@ -20,6 +20,7 @@ import { Button, Facts, FilePick, Form, InlineNotice, LinkButton, Notice, Passwo
          StatusList, TextField, type FieldErrors, type StatusItem } from "../../ui";
 import { getRestore, getState, saveRestore, startRestore, type RestoreProgress, type SetupState, type UsbDisk } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../i18n";
+import * as fmt from "../../i18n/format";
 import { messageText, type Message } from "../../lib/messages";
 import { checkThenSave, StepFooter } from "./common";
 import { diskSize } from "./Backups";
@@ -27,7 +28,7 @@ import { diskSize } from "./Backups";
 /** "23 October 2026 at 02:30" in the interface's language. */
 export function madeAt(iso: string, locale: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(locale, { dateStyle: "long", timeStyle: "short" });
+  return Number.isNaN(d.getTime()) ? iso : fmt.dateAndTime(d, locale);
 }
 
 /** A message whose parameters are backups' times (`newest`, `oldest`, `whole`), with those times in the interface's language. */
