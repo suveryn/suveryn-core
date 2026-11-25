@@ -9,9 +9,9 @@
 import { Check, CircleAlert, FileKey, Info, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getBackups, testRecoveryKey, type BackupStatus } from "../api";
-import { locale, useT } from "../i18n";
-import { day, dayAndTime } from "../i18n/format";
-import { backupState, keyTestState, sizeLabel } from "../lib/backups";
+import { useT } from "../i18n";
+import { bytes, day, dayAndTime } from "../i18n/format";
+import { backupState, keyTestState } from "../lib/backups";
 import { messageText, type Message } from "../lib/messages";
 import { FileButton, InlineNotice, readText, TextButton } from "../ui";
 import { backupWhen } from "./AdminStatus";
@@ -58,7 +58,7 @@ export function AdminBackups() {
       {(state.kind === "ok" || state.kind === "stale" || state.kind === "failing") && (() => {
         const s = state.status, ok = s.last_success!;
         // short, as on board B11: the size and how many there are
-        const detail = [sizeLabel(ok.size, locale()), ok.on_target != null ? m.backupCount({ n: ok.on_target }) : null].filter(Boolean).join(" · ");
+        const detail = [bytes(ok.size), ok.on_target != null ? m.backupCount({ n: ok.on_target }) : null].filter(Boolean).join(" · ");
         return (
           <>
             {state.kind !== "ok" && (

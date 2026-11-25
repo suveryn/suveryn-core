@@ -170,7 +170,7 @@ export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookI
  *  (maandag tot vrijdag, Belgische feestdagen).", "Berekend: 10 % van 385.000,00." */
 export function computedHow(c: Computed, m: Words): string {
   if (c.kind === "share") {
-    return m.pbComputedShare({ percent: fmt.number(Number(c.percent), 2), of: fmt.number(Number(c.of), 2) });
+    return m.pbComputedShare({ percent: fmt.number(Number(c.percent), { most: 2 }), of: fmt.number(Number(c.of), { most: 2 }) });
   }
   const base = fmt.date(`${c.base}T12:00:00`);
   const calendar = c.calendar ? (c.calendar[lang()] ?? c.calendar.en ?? "") : "";
@@ -407,7 +407,7 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
                 <span>
                   <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
                   <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
-                    : m.pbCheckOpen({ needs: c.missing.map((p) => factLabel(words, p)).join(", ") })}</span>
+                    : m.pbCheckOpen({ needs: fmt.list(c.missing.map((p) => factLabel(words, p))), count: c.missing.length })}</span>
                 </span>
               </li>
             ))}
@@ -843,7 +843,7 @@ export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, 
                   <span>
                     <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
                     <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
-                      : m.pbCheckOpen({ needs: c.missing.map((x) => factLabel(words, x)).join(", ") })}</span>
+                      : m.pbCheckOpen({ needs: fmt.list(c.missing.map((x) => factLabel(words, x))), count: c.missing.length })}</span>
                   </span>
                 </li>
               ))}

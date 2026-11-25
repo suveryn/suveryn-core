@@ -22,7 +22,7 @@ import { keepPeriodLabel } from "./CaseDialogs";
 type Access = "office" | "members";
 const PERIODS: KeepPeriod[] = ["6m", "1y", "5y", "manual"];
 // As the server checks them (usage.py Rates): 0 to 10,000, at most 4 decimals.
-const validRate = (v: number) => Number.isFinite(v) && v >= 0 && v <= 10_000 && Number(v.toFixed(4)) === v;
+const validRate = (v: number) => Number.isFinite(v) && v >= 0 && v <= 10_000 && Math.round(v * 10_000) / 10_000 === v;
 
 export function AdminSettings() {
   const m = useT();

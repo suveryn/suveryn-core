@@ -4,7 +4,6 @@
  * nights since failed or didn't run.
  */
 import type { BackupStatus } from "../api";
-import { bytes } from "../i18n/format";
 
 type BackupState =
   | { kind: "unavailable" }                                  // no backup service has run (not an appliance yet)
@@ -93,6 +92,3 @@ export function lastKeyTestOk(s: BackupStatus | null): string | null {
   if (!t) return null;
   return t.ok ? t.at : t.last_ok ?? null;
 }
-
-/** "1.2 GB", "340 MB" (fr "1,2 Go"): a backup's size, decimal units as disks are sold, in the language's own units. */
-export const sizeLabel = (n: number, locale: string): string => bytes(n, locale);

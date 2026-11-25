@@ -49,7 +49,7 @@ web setup by `packages/chat-ui/src/i18n/rules.ts` (`copyProblems`):
 Counts take the singular or the plural by the language's own rules (CLDR, from the browser), never by
 comparing with 1, so French writes "0 page" and English "0 pages". Dates, times, numbers, amounts, sizes and
 lists are formatted the same way, by CLDR's rules through `Intl`, in one module: the chat UI's `src/i18n/format.ts`, a named
-format each ("5 November 2026", "09:07", "1,2 Go"). A test fails on `Intl` or `toLocale…` anywhere else.
+format each ("5 November 2026", "09:07", "1,2 Go"). A test fails on `Intl`, `toLocale…` or `toFixed` anywhere else in the chat UI.
 
 ## Text, not code
 

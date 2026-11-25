@@ -632,7 +632,7 @@ const fr: Messages = {
   runStepUnknown: m("{step} : ignoré, {fact} n''est pas connu."),
   pbCheckHolds: "Exact.",
   pbCheckFails: m("Inexact : {left} contre {right}."),
-  pbCheckOpen: m("Pas encore vérifié : {needs} manque."),
+  pbCheckOpen: m("{count, plural, one {Pas encore vérifié : {needs} manque.} other {Pas encore vérifié : {needs} manquent.}}"),
   pbAdjust: "Modifier",
   pbFill: "Compléter",
   pbNotInPassage: m("Ne figure pas ainsi dans le passage cité : {items}."),

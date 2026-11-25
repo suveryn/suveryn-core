@@ -4,6 +4,7 @@ import { statusText } from "../lib/status";
 import { LANGS, pickLang, setLang, t, TABLES_FOR_TESTS as TABLES, type Lang } from ".";
 import { copyProblems, strings } from "./rules";
 import { signInLang } from "./languages";
+import { list } from "./format";
 
 const texts = (l: Lang) => strings(TABLES[l]);
 
@@ -60,5 +61,18 @@ describe("interface languages (suveryn-tracker#8)", () => {
       .toEqual(["Inloggen", "Het antwoord wordt geschreven…", "3 okt"]);
     setLang("fr");
     expect([t().signIn, dayLabel(new Date(2026, 9, 9).toISOString(), now)]).toEqual(["Se connecter", "Hier"]);
+  });
+});
+
+describe("a list in a sentence (suveryn-tracker#129)", () => {
+  it("is joined as the language joins it, and the verb agrees with how many", () => {
+    const said = (l: Lang, needs: string[]) => {
+      setLang(l);
+      return TABLES[l].pbCheckOpen({ needs: list(needs), count: needs.length });
+    };
+    expect([said("en", ["price"]), said("en", ["price", "date"])])
+      .toEqual(["Not checked yet: price is needed.", "Not checked yet: price and date are needed."]);
+    expect(said("nl", ["prijs", "datum"])).toBe("Nog niet nagekeken: prijs en datum ontbreken.");
+    expect(said("fr", ["prix", "date"]).replace(/ | /g, " ")).toBe("Pas encore vérifié : prix et date manquent.");
   });
 });

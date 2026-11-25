@@ -28,7 +28,6 @@ export const OFFICE_COLOURS = {
   watermark: "CEC1DE",   // --confidential at 0.30 on white: a strictly confidential case's watermark, Word and Excel
 };
 
-const DATE = (d: Date, lang: string) => date(d, lang);
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
 /** The answer as a Word document: question, answer (paragraphs, lists, tables), checks, sources. */
@@ -51,7 +50,7 @@ export async function answerToWord(a: AnswerExport, text: OfficeText, lang: stri
   });
   const body: (InstanceType<typeof d.Paragraph> | InstanceType<typeof d.Table>)[] = [
     new d.Paragraph({ text: a.question, heading: d.HeadingLevel.HEADING_1 }),
-    new d.Paragraph({ children: [new d.TextRun({ text: text.answeredOn(DATE(a.answeredOn, lang)) + (a.model ? ` (${a.model})` : ""), italics: true, size: 18 })] }),
+    new d.Paragraph({ children: [new d.TextRun({ text: text.answeredOn(date(a.answeredOn, lang)) + (a.model ? ` (${a.model})` : ""), italics: true, size: 18 })] }),
   ];
   for (const b of a.blocks) {
     if (b.kind === "table") body.push(table(b), new d.Paragraph({}));

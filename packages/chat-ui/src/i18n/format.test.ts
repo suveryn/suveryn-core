@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import * as fmt from "./format";
 
 const SRC = new URL("..", import.meta.url).pathname;
-const FORMATTING = /\bIntl\.|\.toLocale(?:Date|Time)?String\(/;
+const FORMATTING = /\bIntl\b|\.toLocale(?:Date|Time)?String\(|\.toFixed\(/;
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -45,8 +45,10 @@ describe("dates, numbers and lists", () => {
     ["nl-BE", "1.234,57", "1.235", "1,2K", "€ 1.234,50", "188 kB", "1,2 GB", "2, 3 en 5"],
     ["fr-BE", "1 234,57", "1 235", "1,2 k", "1 234,50 €", "188 ko", "1,2 Go", "2, 3 et 5"],
   ])("say a number, an amount, a size and a list as %s does", (l, number, whole, compact, amount, kb, gb, list) => {
-    const said = [fmt.number(1234.567, 2, l), fmt.whole(1235, l), fmt.compact(1234, l), fmt.amount("1234.5", "EUR", l),
+    const said = [fmt.number(1234.567, { most: 2 }, l), fmt.whole(1235, l), fmt.compact(1234, l), fmt.amount("1234.5", "EUR", l),
                   fmt.bytes(188_000, l), fmt.bytes(1_234_000_000, l), fmt.list([2, 3, 5], l)];
+    expect([fmt.bytes(0, l), fmt.bytes(999, l), fmt.bytes(2_500_000_000_000, l)].map((s) => s.replace(/[\u00a0\u202f]/g, " ")))
+      .toEqual(l === "fr-BE" ? ["0 ko", "1 ko", "2,5 To"] : l === "nl-BE" ? ["0 kB", "1 kB", "2,5 TB"] : ["0 kB", "1 kB", "2.5 TB"]);  // from kilobytes
     // the browser's own spaces in French (a narrow no-break space) and before a unit are compared as spaces
     expect(said.map((s) => s.replace(/[\u00a0\u202f]/g, " "))).toEqual([number, whole, compact, amount, kb, gb, list]);
   });

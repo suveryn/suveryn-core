@@ -30,7 +30,7 @@ import { useState, type ReactNode } from "react";
 import icon from "../brand/suveryn-icon.svg";
 import type { Case, ConversationSummary, Me, PlacedDocument } from "../api";
 import { LANGS, LANGUAGE_NAMES, lang, setLang, useT, type Lang } from "../i18n";
-import { compact } from "../lib/usage";
+import { compact } from "../i18n/format";
 import { Lockup } from "./Brand";
 import { ActionMenu, Avatar, Button, Expander, IconButton, type MenuEntry } from "../ui";
 

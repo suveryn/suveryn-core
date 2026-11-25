@@ -23,7 +23,6 @@ import { LOCALES, useLang, useText, type Text } from "../i18n";
 import * as fmt from "../../i18n/format";
 import { messageText, type Message } from "../../lib/messages";
 import { checkThenSave, StepFooter } from "./common";
-import { diskSize } from "./Backups";
 
 /** "23 October 2026 at 02:30" in the interface's language. */
 export function madeAt(iso: string, locale: string): string {
@@ -121,7 +120,7 @@ export function RestoreSource({ state, onBack, onChecking, headingId }: SourcePr
       <div className="setup-detail">
         {target === "usb" && (disks.length ? (
           <SelectField name="disk" label={t.backupDisk} description={t.restoreDiskHint} value={disk} onChange={setDisk}
-                       options={disks.map((d) => ({ id: d.id, label: `${d.name} · ${diskSize(d.size_bytes, locale)} · ${d.bus}` }))} />
+                       options={disks.map((d) => ({ id: d.id, label: `${d.name} · ${fmt.bytes(d.size_bytes, locale)} · ${d.bus}` }))} />
         ) : (
           <div className="setup-no-disk">
             <p className="setup-detail-note" role="status">{t.noDisk}</p>

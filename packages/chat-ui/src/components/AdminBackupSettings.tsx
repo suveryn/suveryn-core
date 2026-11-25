@@ -14,9 +14,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   askBackupService, type BackupDisk, type BackupRetention, type BackupSettings, type BackupStatus,
 } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
 import * as fmt from "../i18n/format";
-import { sizeLabel } from "../lib/backups";
 import { messageText } from "../lib/messages";
 import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey } from "../setup/recoveryKey";
 import { useText } from "../setup/i18n";
@@ -184,7 +183,7 @@ export function BackupSettingsForm({ status, onSaved }: { status: BackupStatus; 
   };
 
   const diskOptions = [
-    ...(disks ?? []).map((d) => ({ id: d.id, label: `${d.name} · ${sizeLabel(d.size_bytes, locale())}` })),
+    ...(disks ?? []).map((d) => ({ id: d.id, label: `${d.name} · ${fmt.bytes(d.size_bytes)}` })),
     ...(form.disk && !(disks ?? []).some((d) => d.id === form.disk) ? [{ id: form.disk, label: form.disk }] : []),
   ];
   return (

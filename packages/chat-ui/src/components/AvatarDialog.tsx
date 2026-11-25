@@ -15,6 +15,7 @@ import { ImagePlus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { removeMyAvatar, setMyAvatar, type Me } from "../api";
 import { useT } from "../i18n";
+import * as fmt from "../i18n/format";
 import { Avatar, Button, Dialog, FileButton, Slider, TextButton } from "../ui";
 
 const FRAME = 240;      // CSS pixels of the editing canvas
@@ -138,7 +139,7 @@ export function AvatarDialog({ open, me, onClose, onChanged }: {
                   onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
                   aria-label={m.avatarFrameLabel} role="img" />
           <Slider label={m.avatarZoom} value={framing.zoom} onChange={zoomTo} min={1} max={MAX_ZOOM} step={0.05}
-                  format={(v) => `${v.toFixed(2)}×`} />
+                  format={(v) => `${fmt.number(v, { most: 2, least: 2 })}×`} />
           <p className="caption">{m.avatarFrameHint}</p>
           <FileButton accept={ACCEPT} onSelect={pick}><TextButton link>{m.avatarAnotherPicture}</TextButton></FileButton>
         </div>

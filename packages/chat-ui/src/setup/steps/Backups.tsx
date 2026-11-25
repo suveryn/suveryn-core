@@ -13,7 +13,7 @@ import { canMakeRecoveryKey, makeRecoveryKey, recoveryKeyFile, type RecoveryKey 
 import { LOCALES, useLang, useText } from "../i18n";
 import { messageText } from "../../lib/messages";
 import { checkThenSave, errorsFrom, StepFooter } from "./common";
-import { sizeLabel } from "../../lib/backups";
+import { bytes } from "../../i18n/format";
 
 type Target = "usb" | "share" | "later";
 type Props = { state: SetupState; onBack: () => void; onDone: (b: BackupsAnswer) => void; headingId: string };
@@ -24,10 +24,6 @@ const RETENTIONS: Retention[] = [14, 30, 90, 365];
  *  so the file already downloaded stays the right one. A reload makes a new key. */
 let session: { key: RecoveryKey; downloaded: boolean; stored: boolean } | null = null;
 
-/** "1 TB", "500 GB", in French "2,5 To": decimal units, as disks are sold (lib/backups.ts). */
-export function diskSize(bytes: number, locale: string): string {
-  return sizeLabel(bytes, locale);
-}
 
 export function Backups({ state, onBack, onDone, headingId }: Props) {
   const t = useText();
@@ -126,7 +122,7 @@ export function Backups({ state, onBack, onDone, headingId }: Props) {
           <div className="setup-detail">
             {target === "usb" && (disks.length ? (
               <SelectField name="disk" label={t.backupDisk} description={t.diskHint} value={disk} onChange={setDisk}
-                           options={disks.map((d) => ({ id: d.id, label: `${d.name} · ${diskSize(d.size_bytes, locale)} · ${d.bus}` }))} />
+                           options={disks.map((d) => ({ id: d.id, label: `${d.name} · ${bytes(d.size_bytes, locale)} · ${d.bus}` }))} />
             ) : (
               <div className="setup-no-disk">
                 <p className="setup-detail-note" role="status">{t.noDisk}</p>

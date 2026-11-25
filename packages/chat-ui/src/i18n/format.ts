@@ -16,7 +16,7 @@ const at = (w: When): Date => (w instanceof Date ? w : new Date(w));
 const dates = (options: Intl.DateTimeFormatOptions) => (w: When, l: string = current()): string =>
   new Intl.DateTimeFormat(l, options).format(at(w));
 
-/** "5 Nov" (nl "5 nov.", fr "5 nov."). */
+/** "5 Nov" (nl "5 nov", fr "5 nov."). */
 export const day = dates({ day: "numeric", month: "short" });
 /** "5 November" (nl "5 november", fr "5 novembre"). */
 export const dayLong = dates({ day: "numeric", month: "long" });
@@ -42,9 +42,10 @@ export const dateAndTime = dates({ dateStyle: "long", timeStyle: "short" });
 /** Whether two moments fall in the same calendar year, here: a date this year leaves its year out. */
 export const sameYear = (a: When, b: When): boolean => at(a).getFullYear() === at(b).getFullYear();
 
-/** "1,234.5" (nl "1.234,5"): at most `fraction` decimals, as many as the number has up to that. */
-export const number = (n: number, fraction = 3, l: string = current()): string =>
-  new Intl.NumberFormat(l, { maximumFractionDigits: fraction }).format(n);
+/** "1,234.5" (nl "1.234,5"): at most `most` decimals (3), as many as the number has up to that, and at least `least`
+ *  (0): "1.50" with both 2. */
+export const number = (n: number, { most = 3, least = 0 }: { most?: number; least?: number } = {}, l: string = current()): string =>
+  new Intl.NumberFormat(l, { minimumFractionDigits: least, maximumFractionDigits: Math.max(most, least) }).format(n);
 /** "1,234" (nl "1.234"): a count, as the language writes it. */
 export const whole = (n: number, l: string = current()): string => new Intl.NumberFormat(l).format(n);
 /** "1.2k", "34k", "1.5M" (nl "1,2K", fr "1,2 k"): short, for an axis or a tile; exact below 1,000. */
@@ -54,13 +55,15 @@ export const compact = (n: number, l: string = current()): string =>
 export const amount = (n: number | string, currency: string, l: string = current()): string =>
   new Intl.NumberFormat(l, { style: "currency", currency }).format(Number(n));
 
-const BYTES = ["byte", "kilobyte", "megabyte", "gigabyte", "terabyte"] as const;
-/** "1.2 GB", "340 MB" (fr "1,2 Go", "340 Mo"): a size in decimal units, as disks are sold; one decimal below 10. */
+const UNITS = ["kilobyte", "megabyte", "gigabyte", "terabyte"] as const;
+/** "1.2 GB", "340 MB" (fr "1,2 Go", "340 Mo"): a size in decimal units, as disks are sold, from kilobytes; one
+ *  decimal below 10. */
 export function bytes(n: number, l: string = current()): string {
   let i = 0;
-  while (n >= 1000 && i < BYTES.length - 1) { n /= 1000; i++; }
-  return new Intl.NumberFormat(l, { style: "unit", unit: BYTES[i], unitDisplay: "short",
-                                    maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 }).format(n);
+  n /= 1000;  // from kilobytes: "0 kB", never "999 byte"
+  while (n >= 1000 && i < UNITS.length - 1) { n /= 1000; i++; }
+  return new Intl.NumberFormat(l, { style: "unit", unit: UNITS[i], unitDisplay: "short",
+                                    maximumFractionDigits: n < 10 ? 1 : 0 }).format(n);
 }
 
 /** "2", "2 and 3", "2, 3 and 5" (nl "2, 3 en 5", fr "2, 3 et 5"). */

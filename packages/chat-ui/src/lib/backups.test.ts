@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BackupStatus } from "../api";
-import { backupAttention, backupAttentions, backupState, keyTestState, sizeLabel } from "./backups";
+import { backupAttention, backupAttentions, backupState, keyTestState } from "./backups";
 
 const now = new Date("2026-10-23T09:00:00Z");
 // as the gateway sends them: every member, the ones that say nothing as null
@@ -66,10 +66,4 @@ describe("the backups, as the administrator sees them (suveryn-tracker#33)", () 
     expect(backupAttentions({ ...base, key_test: test }, now)).toEqual([]);
   });
 
-  it("gives a backup's size in decimal units", () => {
-    expect(sizeLabel(1_234_567_890, "en")).toBe("1.2 GB");
-    expect(sizeLabel(340_000_000, "nl")).toBe("340 MB");
-    expect(sizeLabel(999, "en")).toBe("999 byte");  // CLDR's own short unit (suveryn-tracker#129)
-    expect(sizeLabel(188_432, "fr")).toBe("188\u202fko");  // VM check of #33: "kB" in French; number and unit kept together
-  });
 });

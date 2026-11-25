@@ -30,17 +30,10 @@ function localDay(value: string): Date | null {
 /** Today from local midnight (until the server's "now"): the sidebar counter's range. */
 export const today = (now: Date) => ({ start: new Date(now.getFullYear(), now.getMonth(), now.getDate()) });
 
-/** "1.2k", "34k", "1.5M" in the current language; exact below 1,000. */
-export const compact = (n: number) => fmt.compact(n);
-export const whole = (n: number) => fmt.whole(n);
-export const money = (amount: string | number, currency: string) => fmt.amount(amount, currency);
-
-export const timeLabel = (d: Date) => fmt.time(d);
-
 /** A bucket's label for its step: a time for minutes, weekday and time for hours (a range can span two days), a date otherwise. */
 export function bucketLabel(iso: string, step: string): string {
   const d = new Date(iso);
-  if (step === "5 minutes") return timeLabel(d);
+  if (step === "5 minutes") return fmt.time(d);
   if (step === "1 hour") return fmt.weekdayAndTime(d);
   return fmt.day(d);
 }

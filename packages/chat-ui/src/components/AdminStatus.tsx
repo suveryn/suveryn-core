@@ -11,11 +11,10 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { applianceClockAnswer, getAdminStatus, getBackups, listAccounts, setApplianceClock, type AdminStatus as Status, type BackupStatus,
   type StatusCheck, type UsersList } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
 import * as fmt from "../i18n/format";
 import { dayLabel } from "../lib/conversations";
-import { whole } from "../lib/usage";
-import { backupAttentions, lastKeyTestOk, sizeLabel } from "../lib/backups";
+import { backupAttentions, lastKeyTestOk } from "../lib/backups";
 import { messageText, type Message } from "../lib/messages";
 import { measureClock, sendClock, type Measured } from "../lib/clock";
 import { Button, Dialog, InlineNotice, Notice } from "../ui";
@@ -154,7 +153,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             )}
             {counted !== null && (
               <div className="admin-tile"><span className="admin-tile-label"><Users size={14} aria-hidden /> {m.adminUsers}</span>
-                <b>{users?.agreement_users ? m.usersTile({ n: counted, max: users.agreement_users }) : whole(counted)}</b></div>
+                <b>{users?.agreement_users ? m.usersTile({ n: counted, max: users.agreement_users }) : fmt.whole(counted)}</b></div>
             )}
           </div>
         </section>
@@ -231,7 +230,7 @@ function detail(c: StatusCheck, m: ReturnType<typeof useT>): string {
   if (c.id === "reading") {
     return [c.in_progress ? m.nInProgress({ n: c.in_progress }) : "", c.waiting ? m.nWaiting({ n: c.waiting }) : ""].filter(Boolean).join(" · ");
   }
-  if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf({ free: sizeLabel(c.free, locale()), total: sizeLabel(c.total, locale()) });
+  if (c.id === "disk" && c.free != null && c.total != null) return m.freeOf({ free: fmt.bytes(c.free), total: fmt.bytes(c.total) });
   if (c.id === "clock") return c.synced ? m.clockKeptByServer : m.clockByBrowsers; // the offset only when it is off, in the status column
   return "";
 }
