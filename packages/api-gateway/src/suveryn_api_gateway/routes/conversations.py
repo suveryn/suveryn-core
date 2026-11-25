@@ -252,7 +252,7 @@ async def _asked(store, cid: uuid.UUID, body: QuestionIn, request: Request) -> t
             raise Problem("request.conflict", "Say which answer the question follows.")
         source = body
     case = (str(place[1]) if place[1] is not None else None) if place is not None else body.case_id
-    asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], stream=True, document_ids=source.document_ids,
+    asked = ChatRequest(messages=[ChatMessage(role="user", content=source.text)], document_ids=source.document_ids,
                         case_id=case, model=source.model, thinking=source.thinking, max_tokens=ANSWER_TOKENS)
     owner = await checked(asked, request)
     scope = Scope.case(uuid.UUID(case)) if case else Scope.personal(owner)

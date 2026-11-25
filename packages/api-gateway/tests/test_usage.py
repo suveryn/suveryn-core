@@ -5,6 +5,7 @@ the end run against a real PostgreSQL and are skipped unless SUVERYN_TEST_DATABA
 """
 
 import os
+import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from urllib.parse import parse_qs, urlsplit
@@ -150,12 +151,15 @@ def test_range_validation(setup):
     assert c.get("/v1/usage", params={"start": "2016-01-01T00:00:00Z"}, headers=alice).status_code == 422  # over five years
 
 
-def test_without_a_database_usage_is_unavailable_but_answers_work():
+def test_without_a_database_usage_is_unavailable_and_nothing_is_asked():
+    """A question is always asked in a conversation the server keeps (suveryn-tracker#251): without the database,
+    nothing is asked, and it says why."""
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([]))
     with TestClient(create_app(llm, load_documents=False, auth=Authenticator.disabled())) as c:
         assert c.get("/v1/usage").status_code == 503
         assert c.get("/health").json()["usage"] == {"status": "unavailable", "detail": None}
-        assert ask(c, CHAT).status_code == 200
+        r = c.post(f"/v1/conversations/{uuid.uuid4()}/questions", json={"text": "Vraag"})  # not ``ask``: it brings a store
+        assert (r.status_code, r.json()["code"]) == (503, "conversation.unavailable")
 
 
 def test_buckets_cost_and_ranges():

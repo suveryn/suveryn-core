@@ -1,6 +1,5 @@
 """An answer as it streams (SSE), plain or grounded in documents: what a question asked in a conversation the server
-keeps answers with (routes/conversations.py, suveryn-tracker#251). The plain ``POST /v1/chat``, which took a history from
-the caller, is gone since step 4c of #251: nothing asked through it any more.
+keeps answers with (routes/conversations.py, suveryn-tracker#251).
 
 Data handling: request, answer and document text pass through but are not logged here. An
 unexpected error during a streamed answer is reported to the client as a generic ``error`` event
@@ -188,21 +187,20 @@ def _sse(event: str, payload: BaseModel) -> str:
     return f"event: {event}\ndata: {payload.model_dump_json()}\n\n"
 
 
-async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard: Heard | None = None):
+async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard: Heard):
     """Translate the chat service's events into the gateway's SSE contract.
 
     Event order: zero or more ``status`` events (pipeline steps before the first word: searching,
     loading_model, reading, writing, thinking), for a grounded answer one ``sources`` event (its passages, so a
     stopped answer keeps what its markers point to), in *Thorough* zero or more ``thinking`` events (the
     reasoning, never part of the answer), zero or more ``delta`` events, then exactly one of ``done`` (a complete
-    ``ChatResponse``, the same shape as the JSON answer, with citations) or ``error``. A client
+    ``ChatResponse``, the whole answer with its citations) or ``error``. A client
     that saw ``delta`` events followed by ``error`` must discard the partial answer.
     """
     try:
         async with aclosing(chat_service.answer_stream(req, owner)) as events:
             async for event in events:
-                if heard is not None:
-                    heard.saw(event)
+                heard.saw(event)
                 if isinstance(event, Status):
                     yield _sse("status", StreamStatus(step=event.step, passages=event.passages,
                                                       complete=event.complete, model=event.model))
@@ -221,19 +219,16 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard
         cause = f" ({type(e.__cause__).__name__})" if e.__cause__ else ""
         log.warning("chat stream failed: %s%s, model %s", what, cause, req.model or "default")
         failed = message("model.unavailable")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail=what))
     except DocumentsUnavailable as e:
         log.warning("chat stream failed: the documents aren't available (%s)", type(e).__name__)
         failed = message("document.unavailable")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail=str(e)))
     except DocumentNotFound:
         failed = message("answer.document_not_found")
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail="unknown document"))
     except Exception as e:  # noqa: BLE001 - the stream must end with an event; the client discards the partial answer
         # Nobody planned for it: a reference for the person, and the log line under it. The exception's type and where
@@ -241,6 +236,5 @@ async def _stream(chat_service: ChatService, req: ChatRequest, owner: str, heard
         ref, where = unplanned(e)
         log.error("chat stream failed: internal %s: %s at %s", ref, type(e).__name__, where)
         failed = message("system.internal", ref=ref)
-        if heard is not None:
-            heard.failure = failed
+        heard.failure = failed
         yield _sse("error", StreamError(**failed, detail="the answer couldn't be completed because of a server error"))

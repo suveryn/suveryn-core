@@ -229,7 +229,8 @@ def ask(c, body: dict, headers: dict | None = None, conversation: str | None = N
     """A question asked as the screens ask it (suveryn-tracker#251): in a conversation the server keeps (a new one
     unless ``conversation`` is given), streamed. ``body`` says what is asked: ``text`` (or the last of ``messages``),
     and the documents, case, model and thinking as a question takes them. A test app without a conversation store gets
-    a stand-in (``FakeConversations``): a question is always kept."""
+    a stand-in (``FakeConversations``), since a question is always kept: a test of asking without one asks by hand
+    (test_usage.py)."""
     from suveryn_api_gateway.routes.common import Database
 
     if not c.app.state.history.configured:

@@ -2028,7 +2028,7 @@ def test_every_answer_of_documents_is_what_the_description_says(office, monkeypa
     assert {s for _, _, s in check.seen} == {200, 201, 202, 204, 401, 403, 404, 409, 411, 413, 415, 422, 429, 507}
 
 
-def test_every_answer_of_answers_is_what_the_description_says(office):
+def test_every_answer_as_it_streams_is_what_the_description_says(office):
     """The chat UI's code for an answer is generated from the description (suveryn-tracker#249): each event of an answer
     as it streams, the refusals too, are checked against it and kept for the chat UI's tests. An answer is asked in a
     conversation the server keeps (suveryn-tracker#251): one new conversation per question here."""

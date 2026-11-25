@@ -42,7 +42,7 @@ def test_a_passage_addressed_to_an_ai_is_flagged_and_audited_without_its_text(ca
 
 def test_streamed_answers_are_flagged_too():
     captured: list = []
-    req = ChatRequest(messages=[{"role": "user", "content": "Wat is de koopprijs?"}], document_ids=["doc-1"], stream=True)
+    req = ChatRequest(messages=[{"role": "user", "content": "Wat is de koopprijs?"}], document_ids=["doc-1"])
 
     async def run():
         return [e async for e in service(captured).answer_stream(req, "user-a")][-1]
