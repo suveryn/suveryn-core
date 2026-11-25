@@ -6,6 +6,7 @@
  */
 import { createContext, useContext } from "react";
 import type { Messages } from "../i18n/en";
+import * as fmt from "../i18n/format";
 
 export type Watermark = {
   /** Across the page: "STRICTLY CONFIDENTIAL". */
@@ -17,8 +18,8 @@ export type Watermark = {
 export function watermark(kase: { reference: string; confidential?: boolean } | null, who: string, m: Messages,
                           locale: string, now: Date = new Date()): Watermark | undefined {
   if (!kase?.confidential) return undefined;
-  const date = now.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
-  const time = now.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
+  const date = fmt.dateInTwoDigits(now, locale);
+  const time = fmt.time(now, locale);
   return { label: m.watermarkLabel, line: m.watermarkLine({ ref: kase.reference, who, when: `${date} ${time}` }) };
 }
 

@@ -632,7 +632,7 @@ const nl: Messages = {
   runStepUnknown: m("{step}: overgeslagen, {fact} is niet bekend."),
   pbCheckHolds: "Klopt.",
   pbCheckFails: m("Klopt niet: {left} tegenover {right}."),
-  pbCheckOpen: m("Nog niet nagekeken: {needs} ontbreekt."),
+  pbCheckOpen: m("{count, plural, one {Nog niet nagekeken: {needs} ontbreekt.} other {Nog niet nagekeken: {needs} ontbreken.}}"),
   pbAdjust: "Aanpassen",
   pbFill: "Invullen",
   pbNotInPassage: m("Staat zo niet in de aangehaalde passage: {items}."),

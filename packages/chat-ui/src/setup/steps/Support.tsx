@@ -9,6 +9,7 @@ import { useState, type ReactNode } from "react";
 import { CopyButton, FileButton, FileDrop, Form, Notice, QrCode, Rows, TextButton, type FieldErrors } from "../../ui";
 import { checkManifest, skipManifest, type Manifest, type SetupState } from "../api";
 import { LOCALES, useLang, useText, type Text } from "../i18n";
+import * as fmt from "../../i18n/format";
 import { checkThenSave, errorsFrom, StepFooter } from "./common";
 
 /** The portal's registration page (placeholder until the portal exists; the console's C8 uses the same). */
@@ -99,7 +100,7 @@ function UploadErrors({ errors, children }: { errors: FieldErrors; children: Rea
 function ManifestRows({ manifest: m, t, locale, onReplace, error }: {
   manifest: Manifest; t: Text; locale: string; onReplace: (f: File) => void; error?: string;
 }) {
-  const date = (iso: string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
+  const date = (iso: string) => fmt.date(iso, locale);
   const shortId = shortApplianceId(m.appliance_id);
   return (
     <div className="setup-stack">

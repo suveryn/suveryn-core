@@ -9,7 +9,8 @@
  */
 import type { Watermark } from "./watermark";
 import type { Citation } from "../api";
-import { locale, type Messages } from "../i18n";
+import type { Messages } from "../i18n";
+import { dateInDigits } from "../i18n/format";
 import type { AssistantTurn } from "../types";
 import { citedNumbers, instructionLikeWarning, toBlocks } from "./answer";
 import { checkLines, type AnswerExport } from "./export";
@@ -53,8 +54,8 @@ export function answerExport(turn: AssistantTurn, question: string, nameOf: (c: 
              ...[instructionLikeWarning(turn.instructionLikeSources, turn.text, available, m)].filter((w): w is string => !!w)],
     sources: citedNumbers(turn.text, available).map((n) => ({ n, citation: turn.citations[n - 1], filename: nameOf(turn.citations[n - 1]) })),
     // sūveryn's mark (lib/marks.ts): so that this file, uploaded again, is recognised and asks first.
-    mark: (caseRef ? m.exportMarkCase({ kind: "answer", caseRef, date: answeredOn.toLocaleDateString(locale()), ref: exportRef("A", turn.id) })
-           : m.exportMark({ kind: "answer", date: answeredOn.toLocaleDateString(locale()), ref: exportRef("A", turn.id) }))
+    mark: (caseRef ? m.exportMarkCase({ kind: "answer", caseRef, date: dateInDigits(answeredOn), ref: exportRef("A", turn.id) })
+           : m.exportMark({ kind: "answer", date: dateInDigits(answeredOn), ref: exportRef("A", turn.id) }))
       + (watermark ? ` · ${m.strictlyConfidential}` : ""),
     watermark,
   };

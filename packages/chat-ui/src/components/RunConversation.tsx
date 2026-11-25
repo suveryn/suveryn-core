@@ -26,7 +26,8 @@ import {
   type Computed,
 } from "../api";
 import { useWatermark } from "../lib/watermark";
-import { lang, locale, useT } from "../i18n";
+import { lang, useT } from "../i18n";
+import * as fmt from "../i18n/format";
 import {
   entriesOf, entryPath, factGroups, factLabel, groupFound, nextEntry, optionLabel, shownFacts, splitPath, type FactGroup, type PlaybookWords,
 } from "../lib/playbooks";
@@ -108,11 +109,11 @@ export function runChipText(run: RunSummary, playbook: Pick<PlaybookInfo, "steps
 const failureLabel = (failure: Message | null, m: Words): string => (failure ? messageText(failure, m) : m.messageKinds.internal);
 
 const time = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : "";
+  iso ? fmt.time(iso) : "";
 const dayAndTime = (iso: string) => {
   const d = new Date(iso);
   const today = new Date().toDateString() === d.toDateString();
-  return today ? time(iso) : `${d.toLocaleDateString(locale(), { day: "numeric", month: "short" })} ${time(iso)}`;
+  return today ? time(iso) : `${fmt.day(d)} ${time(iso)}`;
 };
 
 /** The facts a review card is for (handover of 31 October 2026; board P01): *Check*, a value the check couldn't find
@@ -169,10 +170,9 @@ export const factCounts = (run: Pick<Run, "facts"> & { playbook?: Pick<PlaybookI
  *  (maandag tot vrijdag, Belgische feestdagen).", "Berekend: 10 % van 385.000,00." */
 export function computedHow(c: Computed, m: Words): string {
   if (c.kind === "share") {
-    const number = (v: string) => new Intl.NumberFormat(locale(), { maximumFractionDigits: 2 }).format(Number(v));
-    return m.pbComputedShare({ percent: number(c.percent), of: number(c.of) });
+    return m.pbComputedShare({ percent: fmt.number(Number(c.percent), { most: 2 }), of: fmt.number(Number(c.of), { most: 2 }) });
   }
-  const base = new Date(`${c.base}T12:00:00`).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+  const base = fmt.date(`${c.base}T12:00:00`);
   const calendar = c.calendar ? (c.calendar[lang()] ?? c.calendar.en ?? "") : "";
   const how = { base, term: m.pbTerm({ n: c.amount, unit: c.unit }), before: c.direction === "before" };
   return calendar ? m.pbComputedHowCalendar({ ...how, calendar }) : m.pbComputedHow(how);
@@ -407,7 +407,7 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
                 <span>
                   <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
                   <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
-                    : m.pbCheckOpen({ needs: c.missing.map((p) => factLabel(words, p)).join(", ") })}</span>
+                    : m.pbCheckOpen({ needs: fmt.list(c.missing.map((p) => factLabel(words, p))), count: c.missing.length })}</span>
                 </span>
               </li>
             ))}
@@ -586,12 +586,12 @@ function SummaryTurn({ run, kase, words, nameOf, title }: { run: Run; kase: Case
     const { intakeToWord, saveBlob } = await import("../lib/office");
     const blob = await intakeToWord({
       title: `${title} ${kase.reference}`, caseName: kase.name, version: m.playbookVersion({ v: run.playbook_version }),
-      confirmedOn: m.confirmedBy({ who: run.confirmed_by ? nameOf(run.confirmed_by) : "", day: new Date(run.confirmed_at ?? run.started_at).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" }) }),
+      confirmedOn: m.confirmedBy({ who: run.confirmed_by ? nameOf(run.confirmed_by) : "", day: fmt.date(run.confirmed_at ?? run.started_at) }),
       facts: shownFacts(run.facts).map((f) => ({ label: factLabel(words, f.id), value: f.confirmed ?? f.value,
                                     sources: f.citations.map((c) => `${c.filename}${c.page ? ` p. ${c.page}` : ""}`) })),
       sourcesHeading: m.sourcesHeading, emptyValue: m.factNotFound, disclaimer: m.wordDisclaimer,
       // sūveryn's mark (lib/marks.ts): uploaded again, this file asks before it becomes a source
-      mark: m.exportMarkCase({ kind: "playbook", caseRef: kase.reference, date: new Date().toLocaleDateString(locale()), ref: exportRef("P", run.id) })
+      mark: m.exportMarkCase({ kind: "playbook", caseRef: kase.reference, date: fmt.dateInDigits(new Date()), ref: exportRef("P", run.id) })
         + (mark() ? ` · ${m.strictlyConfidential}` : ""),
       watermark: mark(),  // a strictly confidential case (§11)
     });
@@ -843,7 +843,7 @@ export function RunPanel({ run, words, view, lists = run.playbook?.lists ?? {}, 
                   <span>
                     <span className="run-check-text">{words.checks?.[c.id] ?? c.rule}</span>
                     <span className="run-check-note">{c.status === "holds" ? m.pbCheckHolds : c.status === "fails" ? m.pbCheckFails({ left: c.left, right: c.right })
-                      : m.pbCheckOpen({ needs: c.missing.map((x) => factLabel(words, x)).join(", ") })}</span>
+                      : m.pbCheckOpen({ needs: fmt.list(c.missing.map((x) => factLabel(words, x))), count: c.missing.length })}</span>
                   </span>
                 </li>
               ))}
@@ -889,7 +889,7 @@ function ListBlock({ group, fields, words, canAdd, onSource, onAdd }: {
   const shown = (f: RunFact | undefined) => (f ? f.confirmed ?? f.value : "");
   // the entry's name: its first field, else the first value it has
   const nameOf = (values: Record<string, RunFact>) => shown(values[head]) || Object.values(values).map(shown).find(Boolean) || m.answerPlaceholder;
-  const names = new Intl.ListFormat(locale(), { type: "conjunction" }).format(entries.map((e) => nameOf(e.values)));
+  const names = fmt.list(entries.map((e) => nameOf(e.values)));
   const first = entries.flatMap((e) => Object.values(e.values)).find((f) => f.citations.length > 0);
   const src = first ? sourceText(first, m) : null;
   const flagged = group.facts.filter((f) => (f.issues.length > 0 || f.needs) && f.source !== "person" && !(f.confirmed ?? ""));

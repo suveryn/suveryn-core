@@ -2,7 +2,8 @@
  * Saved conversations (suveryn-tracker#5): what is sent to the server and how it comes back.
  * The server stores the turns as given, under the signed-in user; see the gateway's conversations.py.
  */
-import { lang, locale, t } from "../i18n";
+import { lang, t } from "../i18n";
+import { day, dayInYear, sameYear } from "../i18n/format";
 import type { ChatResponse } from "../api";
 import type { AssistantTurn, Turn } from "../types";
 import { answerPatch } from "./ask";
@@ -111,8 +112,7 @@ export function dayLabel(iso: string, now: Date = new Date()): string {
   const days = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
   if (days === 0) return t().today;
   if (days === 1) return t().yesterday;
-  return d.toLocaleDateString(locale(), { day: "numeric", month: "short",
-    ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+  return sameYear(d, now) ? day(d) : dayInYear(d);
 }
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();

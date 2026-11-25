@@ -15,6 +15,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { type CaseOverview, type ConversationSummary, type Job, type Me, type Member, type RunSummary } from "../api";
 import { locale, t, useT } from "../i18n";
+import { dayInYear } from "../i18n/format";
 import { listAnd } from "../lib/lists";
 import { dayLabel, listedTitle } from "../lib/conversations";
 import { ACCEPTED_FILES } from "../lib/formats";
@@ -35,7 +36,7 @@ const PAGE = 25;
 
 const matches = (q: string, ...texts: (string | null | undefined)[]) =>
   !q || texts.some((t) => (t ?? "").toLowerCase().includes(q));
-const longDate = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
+const longDate = (iso: string) => dayInYear(iso);
 const byText = (a: string, b: string) => a.localeCompare(b, locale(), { numeric: true, sensitivity: "base" });
 
 /** The page's head: its title, one line that sums it up, and its action: outlined, with icon and words (Filip, 8 November: an

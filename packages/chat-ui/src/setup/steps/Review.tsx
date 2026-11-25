@@ -6,6 +6,7 @@ import { Lock, SquareTerminal } from "lucide-react";
 import { Form, Notice, Rows, TextButton, type FieldErrors, type Row } from "../../ui";
 import type { SetupState } from "../api";
 import { LOCALES, useLang, useText } from "../i18n";
+import * as fmt from "../../i18n/format";
 import { StepFooter } from "./common";
 
 export type Editable = 1 | 2 | 3 | 4 | 5;
@@ -17,7 +18,7 @@ export function Review({ state, onBack, onEdit, onStart, headingId }: Props) {
   const locale = LOCALES[useLang()];
   const a = state.answers;
   const ip = state.address.split("/")[0];
-  const date = (iso: string) => new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(new Date(iso));
+  const date = (iso: string) => fmt.date(iso, locale);
   const edit = (step: Editable, what: string) => (
     <TextButton link aria-label={t.editLabel({ what })} onPress={() => onEdit(step)}>{t.edit}</TextButton>
   );

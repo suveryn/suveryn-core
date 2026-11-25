@@ -20,7 +20,8 @@ import {
   casePlaybooks, handOver, listCaseEvents, listMembers, removeMember, searchUsers, setMember, updateCase,
   type Case, type CaseEvent, type Member, type Person,
 } from "../api";
-import { lang, locale, useT } from "../i18n";
+import { lang, useT } from "../i18n";
+import { time } from "../i18n/format";
 import { playbookWords } from "../lib/playbooks";
 import { dayLabel } from "../lib/conversations";
 import { Avatar, Button, ComboBoxField, Dialog, IconBadge, InlineNotice, Segmented, Select, SelectField, Switch, TextButton } from "../ui";
@@ -307,7 +308,7 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
         <ol className="event-list">
           {events.map((e) => (
             <li key={e.id} className="event">
-              <span className="event-when">{dayLabel(e.at)} {new Date(e.at).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="event-when">{dayLabel(e.at)} {time(e.at)}</span>
               <span className="event-what"><ScrollText size={12} aria-hidden />
                 {/* one sentence, the person in bold where the language puts them */}
                 <span>{eventParts(e, m, { who: e.name || names.get(e.user) || e.user }, (u) => names.get(u) ?? "", (id) => titles.get(id) ?? "")

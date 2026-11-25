@@ -6,6 +6,7 @@
 import type { StoredDocument } from "../api";
 import type { Chosen, Turn } from "../types";
 import { formatName } from "./formats";
+import { day } from "../i18n/format";
 import { originKind } from "./origin";
 
 /** The choice when a conversation is opened again: the last question's (none: the whole case). */
@@ -30,6 +31,6 @@ export function stillThere(about: Chosen[], docs: StoredDocument[]): { about: Ch
 /** One row's details: "PDF · 14 p. · Ines Wouters, 12 Oct". */
 export function pickMeta(d: StoredDocument, who: string, locale: string): string {
   const kind = formatName(d.filename) || "PDF";
-  const when = new Date(d.created_at).toLocaleDateString(locale, { day: "numeric", month: "short" });
+  const when = day(d.created_at, locale);
   return [kind, d.pages ? `${d.pages} p.` : null, [who, when].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 }

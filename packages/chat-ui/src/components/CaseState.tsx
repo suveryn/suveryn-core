@@ -10,7 +10,8 @@
 import { CalendarPlus, CircleAlert, LockOpen, Star, StarOff, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { keepCase, reopenCase, type Case } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
+import { dayInYear } from "../i18n/format";
 import { InlineNotice, TextButton } from "../ui";
 
 const DUE_WARNING_DAYS = 30;  // the warning before a closed case's deletion (docs/design/cases.md, stage 3)
@@ -21,7 +22,7 @@ export const isDue = (c: Case, now: Date = new Date()): boolean =>
 
 /** A date as "3 Apr 2027", in the interface language. */
 export const onDay = (iso: string): string =>
-  new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
+  dayInYear(iso);
 
 /** What becomes of a closed case, in words: for the state line and the sidebar's due list. */
 export function fateLabel(c: Case, m: ReturnType<typeof useT>): string {

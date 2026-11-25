@@ -10,9 +10,10 @@
 import { ArrowLeft, ChartColumn, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
-import { locale, useT } from "../i18n";
+import { useT } from "../i18n";
+import { amount, compact, date, time, whole } from "../i18n/format";
 import type { AdminPage } from "./Admin";
-import { bucketLabel, compact, money, PRESETS, rangeFor, timeLabel, whole, type Preset } from "../lib/usage";
+import { bucketLabel, PRESETS, rangeFor, type Preset } from "../lib/usage";
 import {
   ColumnChart, DateField, InlineNotice, Segmented, TextButton,
   type ChartText, type Datum, type Series,
@@ -88,7 +89,7 @@ function Chart({ report }: { report: UsageReport }) {
   const markLabel = report.step === "5 minutes" || report.step === "1 hour" ? (i: number, previous: number | null) => {
     const d = new Date(report.series[i].start);
     const sameDay = previous !== null && new Date(report.series[previous].start).toDateString() === d.toDateString();
-    return sameDay ? timeLabel(d) : bucketLabel(report.series[i].start, report.step);
+    return sameDay ? time(d) : bucketLabel(report.series[i].start, report.step);
   } : undefined;
   return <ColumnChart label={m.chartLabel({ total: whole(report.totals.total_tokens), step: m.stepName({ step: report.step }) })} series={series}
                       data={data} format={whole} tick={compact} text={text} slots={slots} every={every} markLabel={markLabel} />;
@@ -146,7 +147,7 @@ export function ViewHeader({ icon, title, onBack }: { icon: React.ReactNode; tit
 
 /** The signed-in user's own usage. */
 /** "1 October 2024": where the raw usage kept begins (the retention, 24 months). */
-const keptFrom = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
+const keptFrom = (iso: string) => date(iso);
 
 export function UsageView({ onBack }: { onBack: () => void }) {
   const m = useT();
@@ -182,8 +183,8 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       {report && (
         <>
           <h2 className="label">{m.officeUsage}</h2>
-          <Totals totals={report.totals} extra={{ label: m.costTile, value: money(report.cost, report.rates.currency) }} />
-          <p className="caption">{m.costExplain({ cost: money(report.cost, report.rates.currency) })}</p>
+          <Totals totals={report.totals} extra={{ label: m.costTile, value: amount(report.cost, report.rates.currency) }} />
+          <p className="caption">{m.costExplain({ cost: amount(report.cost, report.rates.currency) })}</p>
           {report.totals.requests === 0 ? <p className="caption">{m.noUsage}</p> : (
             <>
               <Chart report={report} />
@@ -201,7 +202,7 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                         <th scope="row" title={u.username ?? u.user_id}>{u.name ?? u.username ?? m.unknownUser}</th>
                         <td>{whole(u.totals.requests)}</td><td>{whole(u.totals.prompt_tokens)}</td>
                         <td>{whole(u.totals.completion_tokens)}</td><td>{whole(u.totals.total_tokens)}</td>
-                        <td>{u.cost !== null ? money(u.cost, report.rates.currency) : ""}</td>
+                        <td>{u.cost !== null ? amount(u.cost, report.rates.currency) : ""}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -210,7 +211,7 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
                       <th scope="row" className="ui-total">{m.chartTotal}</th>
                       <td className="ui-total">{whole(report.totals.requests)}</td><td className="ui-total">{whole(report.totals.prompt_tokens)}</td>
                       <td className="ui-total">{whole(report.totals.completion_tokens)}</td><td className="ui-total">{whole(report.totals.total_tokens)}</td>
-                      <td className="ui-total">{money(report.cost, report.rates.currency)}</td>
+                      <td className="ui-total">{amount(report.cost, report.rates.currency)}</td>
                     </tr></tfoot>
                   )}
                 </table>
@@ -218,8 +219,8 @@ export function AdminUsage({ onOpen }: { onOpen: (page: AdminPage) => void }) {
             </>
           )}
           <p className="caption">
-            {m.rateInput}: {money(report.rates.input_per_million, report.rates.currency)} · {m.rateOutput}:{" "}
-            {money(report.rates.output_per_million, report.rates.currency)}.{" "}
+            {m.rateInput}: {amount(report.rates.input_per_million, report.rates.currency)} · {m.rateOutput}:{" "}
+            {amount(report.rates.output_per_million, report.rates.currency)}.{" "}
             <TextButton link onPress={() => onOpen("settings")}>{m.changeInSettings}</TextButton>
           </p>
         </>

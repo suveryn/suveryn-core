@@ -13,8 +13,8 @@ import type { Segment, Table } from "./answer";
 import { tableRows, type AnswerExport, type SourceItem } from "./export";
 import type { OfficeText } from "./office";
 import type { Watermark } from "./watermark";
+import { date } from "../i18n/format";
 
-const DATE = (d: Date, lang: string) => d.toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
 const where = (s: SourceItem) => s.citation.source?.location ?? (s.citation.source?.page ? `p. ${s.citation.source.page}` : "");
 
 /** Text as Markdown would read it literally: the characters that start formatting, escaped. */
@@ -36,7 +36,7 @@ function markdownTable(t: Table): string[] {
 
 export function answerToMarkdown(a: AnswerExport, text: OfficeText, lang: string): string {
   // A strictly confidential case's watermark (§11): the first line.
-  const out: string[] = [...(a.watermark ? [`**${escape(a.watermark.line)}**`, ""] : []), `# ${escape(a.question)}`, "", `*${escape(text.answeredOn(DATE(a.answeredOn, lang)) + (a.model ? ` (${a.model})` : ""))}*`, ""];
+  const out: string[] = [...(a.watermark ? [`**${escape(a.watermark.line)}**`, ""] : []), `# ${escape(a.question)}`, "", `*${escape(text.answeredOn(date(a.answeredOn, lang)) + (a.model ? ` (${a.model})` : ""))}*`, ""];
   let inList = false;
   for (const b of a.blocks) {
     if (b.kind !== "li" && inList) { out.push(""); inList = false; }

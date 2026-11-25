@@ -92,11 +92,3 @@ export function lastKeyTestOk(s: BackupStatus | null): string | null {
   if (!t) return null;
   return t.ok ? t.at : t.last_ok ?? null;
 }
-
-/** "1.2 GB", "340 MB": a backup's size, decimal units as disks are sold; in French in octets ("188 ko"). */
-export function sizeLabel(bytes: number, locale: string): string {
-  const units = locale.startsWith("fr") ? ["o", "ko", "Mo", "Go", "To"] : ["B", "kB", "MB", "GB", "TB"];
-  let n = bytes, i = 0;
-  while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
-  return `${n.toLocaleString(locale, { maximumFractionDigits: n < 10 && i > 0 ? 1 : 0 })} ${units[i]}`;
-}

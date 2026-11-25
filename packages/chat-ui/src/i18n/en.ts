@@ -666,7 +666,7 @@ const en = {
   runStepUnknown: m("{step}: skipped, {fact} is not known.", "step", "fact"),
   pbCheckHolds: "Holds.",
   pbCheckFails: m("Does not hold: {left} against {right}.", "left", "right"),
-  pbCheckOpen: m("Not checked yet: {needs} is needed.", "needs"),
+  pbCheckOpen: m("{count, plural, one {Not checked yet: {needs} is needed.} other {Not checked yet: {needs} are needed.}}", "needs", "count"),
   pbAdjust: "Adjust",
   pbFill: "Fill in",
   pbNotInPassage: m("Not in the cited passage as written: {items}.", "items"),
