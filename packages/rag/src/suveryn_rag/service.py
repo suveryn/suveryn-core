@@ -25,9 +25,13 @@ documents; a document elsewhere is answered exactly like a missing one. Job stat
 uploader's. De-duplication by content hash is per scope too, so uploading a file someone else
 stored in their own space creates your own copy instead of handing you theirs.
 
-Archives: a .zip upload (``accept_archive``) becomes one job per PDF, Word, Excel, Markdown or CSV file
-inside it, each read like an upload of its own; what can't be read (another kind of file, an archive
-inside the archive, an encrypted, too large, empty or damaged entry) is listed with a reason.
+Archives: a .zip upload (``accept_archive``) becomes one job per file inside it that sūveryn reads
+(``formats.KINDS``), each read like an upload of its own; what can't be read (another kind of file, an
+archive or an email inside the archive, an encrypted, too large, empty or damaged entry) is listed with a
+reason. An email (.eml) is taken apart the same way: a job for the message itself (``formats.read_email``),
+and one per attachment sūveryn reads. Unlike a .zip, it is taken apart here, in the gateway's process, at
+once: Python's email package parses its headers and MIME structure and decodes each attachment read (base64
+or quoted-printable) to a private upload of its own; what each says is read in the sandboxed reader.
 
 - **Checked at once, unpacked one by one.** On upload every entry is read through once, writing
   nothing, to check it and count the bytes it really unpacks to (a zip bomb stops at the limit). The
@@ -47,6 +51,7 @@ that fails too, ``SearchUnavailable`` is raised, which the gateway reports as 50
 
 import logging
 import os
+import re
 import shutil
 import threading
 import time
@@ -63,7 +68,7 @@ from suveryn_harness import Citation
 from suveryn_harness.messages import Problem, message, unplanned
 
 from .config import RagSettings
-from .formats import SUFFIX, kind_of, looks_like
+from .formats import MAX_EMAIL_PARTS, SUFFIX, email_parts, kind_of, looks_like, parse_email
 from .reading import Cancelled, Progress, ReaderCrashed, Unreadable, Watch
 from .store import Scope
 from .naming import named_document
@@ -89,12 +94,14 @@ JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten aft
 
 
 # What an upload may be (formats.py); said when anything else is uploaded.
-ACCEPTED = "PDF, Word (.docx), Excel (.xlsx), Markdown (.md) and CSV files, or a .zip of them"
+ACCEPTED = ("PDF, Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML and HTML files, "
+            "emails (.eml), or a .zip of them")
 # An archive: at most this many entries listed, and this much unpacked in all (each entry is also held
 # to MAX_UPLOAD_BYTES). Its documents count against the queue limits like separate uploads.
 MAX_ARCHIVE_ENTRIES = 1000
 MAX_ARCHIVE_UNPACKED = 300 * 1024 * 1024
-LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV"}
+LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV", "tsv": "TSV", "txt": "text",
+          "json": "JSON", "xml": "XML", "html": "HTML", "eml": "email"}
 
 
 class UploadRejected(Problem):
@@ -233,6 +240,15 @@ def clean_name(name: str) -> str:
 
 def is_archive(filename: str | None) -> bool:
     return Path(filename or "").suffix.lower() == ".zip"
+
+
+def is_email(filename: str | None) -> bool:
+    return Path(filename or "").suffix.lower() == ".eml"
+
+
+def holds_documents(filename: str | None) -> bool:
+    """A .zip or an .eml: taken apart into documents (``accept_archive``), not read as one."""
+    return is_archive(filename) or is_email(filename)
 
 
 def junk(name: PurePosixPath) -> bool:
@@ -502,8 +518,9 @@ class DocumentService:
         """Delete every waiting upload, and the provisioned inbox's files (not the inbox itself)."""
         shutil.rmtree(self._uploads, ignore_errors=True)
         if self._inbox is not None:
-            for suffix in set(SUFFIX.values()):  # uploads only: other files in the inbox aren't ours
-                for leftover in self._inbox.glob(f"*{suffix}"):
+            suffixes = set(SUFFIX.values())
+            for leftover in self._inbox.iterdir():  # uploads only, by their names (a job's id): other files aren't ours
+                if leftover.suffix in suffixes and re.fullmatch(r"[0-9a-f]{32}", leftover.stem):
                     leftover.unlink(missing_ok=True)
 
     def _prepare_uploads(self) -> None:
@@ -527,8 +544,10 @@ class DocumentService:
     # ------------------------------------------------------------------ uploads and jobs
     def accept_upload(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Job:
         """Store an uploaded file privately and queue it, uploaded by ``owner`` into the case ``case_id``
-        (or their personal space). A PDF, Word, Excel, Markdown or CSV file, by its extension, and its
+        (or their personal space). A kind of file sūveryn reads (``formats.KINDS``), by its extension, and its
         first bytes must fit (``formats.looks_like``); the reader checks the rest. Raises ``UploadRejected``."""
+        if holds_documents(filename):
+            raise ValueError("a .zip or .eml is taken apart into documents: accept_archive")
         kind = kind_of(filename or "document.pdf")
         if kind is None:
             raise UploadRejected(f"only {ACCEPTED} can be added", "upload.unsupported")
@@ -578,30 +597,21 @@ class DocumentService:
             raise UploadRejected("too many documents are waiting to be read; try again when some are done", "upload.too_many")
 
     def accept_archive(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None = None) -> Archive:
-        """A .zip upload: each PDF, Word, Excel, Markdown or CSV file inside becomes a job of its own, named
+        """A .zip upload: each file inside that sūveryn reads becomes a job of its own, named
         after the file (its folders in the archive left out), queued in turn; the rest is listed in
         ``skipped``, each with why as a message of the registry (``failure``). Every entry is checked now; each is unpacked only when it is read (see
-        the module's notes). Raises ``UploadRejected`` when the archive itself can't be used, is empty, or
-        no upload may wait now; then nothing is added."""
+        the module's notes). An .eml upload the same way (``_accept_email``). Raises ``UploadRejected`` when the
+        archive itself can't be used, is empty, or no upload may wait now; then nothing is added."""
+        if is_email(filename):
+            return self._accept_email(src, filename, owner, case_id)
         name = clean_name(filename or "archive.zip")
         self._prepare_uploads()
         upload = uuid.uuid4().hex
         path = self._uploads / f"{upload}.zip"
         keep = False
         try:
-            with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
-                head = src.read(4)
-                if not head:
-                    raise UploadRejected("the file is empty", "upload.empty")
-                if head not in (b"PK\x03\x04", b"PK\x05\x06"):
-                    raise UploadRejected("the file is not a valid ZIP archive", "upload.not_a_zip")
-                out.write(head)
-                size = len(head)
-                while block := src.read(1 << 20):
-                    size += len(block)
-                    if size > MAX_UPLOAD_BYTES:
-                        raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", "upload.too_large", max_mb=MAX_UPLOAD_BYTES // (1024 * 1024))
-                    out.write(block)
+            self._receive(src, path, lambda head: head[:4] in (b"PK\x03\x04", b"PK\x05\x06"),
+                          UploadRejected("the file is not a valid ZIP archive", "upload.not_a_zip"))
             try:
                 with zipfile.ZipFile(path) as z:
                     entries = z.infolist()
@@ -644,6 +654,87 @@ class DocumentService:
         return Archive(filename=name, jobs=[j for j, _ in jobs], skipped=skipped)
 
     @staticmethod
+    def _receive(src: BinaryIO, path: Path, fits, mismatch: UploadRejected) -> None:
+        """Copy an upload privately to ``path``; refuse it when it is empty, its first bytes don't ``fit``
+        (``mismatch``), or it is larger than an upload may be."""
+        with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+            head = src.read(8)
+            if not head:
+                raise UploadRejected("the file is empty", "upload.empty")
+            if not fits(head):
+                raise mismatch
+            out.write(head)
+            size = len(head)
+            while block := src.read(1 << 20):
+                size += len(block)
+                if size > MAX_UPLOAD_BYTES:
+                    raise UploadRejected(f"the file is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB", "upload.too_large", max_mb=MAX_UPLOAD_BYTES // (1024 * 1024))
+                out.write(block)
+
+    def _accept_email(self, src: BinaryIO, filename: str, owner: str, case_id: uuid.UUID | None) -> Archive:
+        """An .eml upload: a job for the message itself, read as an email (sender, recipients, date, subject,
+        text), and one per attachment sūveryn reads, named after it; the other attachments listed in ``skipped``
+        with why. The email is taken apart once, now: each attachment read is written to a private upload of its
+        own, as a single upload is, so the email isn't parsed again for each."""
+        name = clean_name(filename or "message.eml")
+        self._prepare_uploads()
+        with self._jobs_lock:
+            self._check_room(owner)  # before parsing: a full queue isn't kept busy taking emails apart
+        upload = uuid.uuid4().hex
+        path = self._uploads / f"{upload}.eml"
+        written: list[Path] = [path]
+        keep = False
+        jobs: list[tuple[Job, Path]] = []
+        try:
+            self._receive(src, path, lambda head: looks_like("eml", head),
+                          UploadRejected(f"the file is not a valid {LABELS['eml']} file", "upload.content_mismatch"))
+            try:
+                attachments = email_parts(parse_email(path.read_bytes())).attachments
+            except Unreadable as e:  # too many parts, nested past any mail program, or not an email at all
+                if e.code == "document.too_large":
+                    raise UploadRejected(str(e), "upload.archive_files_too_many", max=MAX_EMAIL_PARTS) from None
+                raise UploadRejected("the file is not a valid email", "upload.content_mismatch") from None
+            if len(attachments) > MAX_ARCHIVE_ENTRIES:
+                raise UploadRejected(f"the email has more than {MAX_ARCHIVE_ENTRIES} attachments", "upload.archive_files_too_many", max=MAX_ARCHIVE_ENTRIES)
+            wanted: list[tuple[str, Path]] = [(name, path)]
+            skipped: list[dict] = []
+            for attachment, part in attachments:
+                attachment = clean_name(attachment)
+                kind = kind_of(attachment)
+                data = b""
+                if part.get_content_type() == "message/rfc822" or holds_documents(attachment):
+                    failure = message("upload.archive_inside_unsupported")
+                elif kind is None:
+                    failure = message("upload.unsupported")
+                else:
+                    data = part.get_payload(decode=True) or b""
+                    failure = (message("upload.empty") if not data else _too_large() if len(data) > MAX_UPLOAD_BYTES
+                               else message("upload.content_mismatch") if not looks_like(kind, data[:8]) else None)
+                if failure:
+                    skipped.append({"name": attachment, "failure": failure})
+                    continue
+                file = self._uploads / f"{uuid.uuid4().hex}{SUFFIX[kind]}"  # the reader goes by the extension
+                written.append(file)
+                with open(os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as out:
+                    out.write(data)
+                wanted.append((attachment, file))
+            skipped.sort(key=lambda e: e["name"].lower())
+            jobs = [(Job(id=uuid.uuid4().hex, filename=file, owner=owner, case_id=case_id, status="queued", archive=name,
+                         upload=upload), source) for file, source in wanted]
+            with self._jobs_lock:
+                self._check_room(owner)
+                for job, _ in jobs:
+                    self._jobs[job.id] = job
+            keep = True
+        finally:
+            if not keep:
+                for file in written:
+                    file.unlink(missing_ok=True)
+        for item in jobs:
+            self._queue.put(item)
+        return Archive(filename=name, jobs=[j for j, _ in jobs], skipped=skipped)
+
+    @staticmethod
     def _sort_entries(entries: list[zipfile.ZipInfo]) -> tuple[list[tuple[zipfile.ZipInfo, str]], list[dict]]:
         """The entries to read, with their kind, and those left out with why (a message of the registry); folders
         and junk are ignored. An entry larger than an upload by what the archive says is left out unread."""
@@ -653,7 +744,7 @@ class DocumentService:
             if e.is_dir() or not name.name or junk(name):
                 continue
             kind = kind_of(name.name)
-            failure = (message("upload.archive_inside_unsupported") if is_archive(name.name) else message("upload.unsupported") if kind is None
+            failure = (message("upload.archive_inside_unsupported") if holds_documents(name.name) else message("upload.unsupported") if kind is None
                        else message("document.password_protected") if e.flag_bits & 0x1
                        else _too_large() if e.file_size > MAX_UPLOAD_BYTES else message("upload.empty") if e.file_size == 0 else None)
             if failure:

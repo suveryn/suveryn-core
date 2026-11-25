@@ -27,7 +27,7 @@ class Chunk:
     page_end: int | None
     headings: list[str]
     origin: str = "chunker"  # "chunker", or "text_recovered" / "header_footer_recovered" / "text_layer_recovered" (see integrity)
-    place: str | None = None  # a spreadsheet passage's cells, e.g. "Prices!A2:D31" (formats)
+    place: str | None = None  # a spreadsheet passage's cells ("Prices!A2:D31"), a JSON Pointer or an XPath (formats)
 
 
 def in_reading_order(chunks: list[Chunk]) -> list[Chunk]:

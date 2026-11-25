@@ -21,6 +21,7 @@ from .common import (
     Scope,
     case_for,
     docs_or_503,
+    holds_documents,
     history_or_503,
     flush_soon,
     history_or_none,
@@ -45,7 +46,8 @@ DocumentStatus = Literal["ok", "needs_review"]                                  
 Origin = Literal["uploaded", "generated", "playbook", "answer"]                                               # store.ORIGINS
 # The files an upload can be, as its original is sent back (formats.CONTENT_TYPE; anything else as bytes).
 ORIGINALS = ("application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/plain", "application/octet-stream")
+             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "message/rfc822", "text/plain",
+             "application/octet-stream")
 
 
 class ReadingWarning(Message):
@@ -206,21 +208,23 @@ def _document_id(document_id: str) -> uuid.UUID:
 @router.post("/v1/documents", status_code=202, response_model=Upload | ArchiveUpload, responses=refusals(404, 411, 413, 415, 422, 429, 507))
 async def create_upload(request: Request, file: UploadFile = File(...), case: str | None = None):  # noqa: B008 - FastAPI's way to declare a form file
     """Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
-    Word (.docx), Excel (.xlsx), Markdown (.md) or CSV file, recognised by its extension and first bytes.
-    Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is ``ready`` (or
-    ``needs_review``), then use its ``document_id`` in chat requests.
+    Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML or HTML file, recognised by its
+    extension and first bytes. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is
+    ``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests.
 
     A .zip archive adds each of those files inside it as a document of its own: the answer is then
     ``{"archive": name, "jobs": [job, …], "skipped": [{"name", "failure"}, …]}``, a job per document and
     the entries left out, each with why as a message of the registry (``failure``: another kind of file, an
-    archive inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty. An archive is
-    one upload against the queue limits, however many documents it holds."""
+    archive or email inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty.
+    An email (.eml) answers the same way: a job for the message itself (sender, recipients, date, subject, body)
+    and one per attachment of those kinds. Either is one upload against the queue limits, however many documents
+    it holds."""
     docs = docs_or_503(request)
     scope = await scope_of(request, case, "contribute")
     if await run_in_threadpool(disk_low):
         raise Problem("upload.disk_full", "The appliance's disk is nearly full: no documents can be added until there is room.")
     filename = file.filename or "document.pdf"
-    archive = filename.lower().endswith(".zip")
+    archive = holds_documents(filename)
     # an upload refused (UploadRejected) is a Problem with its own code, upload.*: answered as it is (problems.py)
     if archive:
         result = await run_in_threadpool(docs.accept_archive, file.file, filename, owner_of(request), scope.case_id)
@@ -445,7 +449,8 @@ async def save_turn_as_document(conversation_id: str, seq: int, request: Request
 async def get_document_original(document_id: str, request: Request, case: str | None = None):
     """The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
     its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
-    ``#page=3``), Markdown and CSV show as plain text, Word and Excel are downloaded. Text sūveryn stored
+    ``#page=3``), text files (Markdown, CSV, TSV, text, JSON, XML, HTML) show as plain text, never as a page;
+    Word, Excel and an email are downloaded. Text sūveryn stored
     itself (a saved answer, a playbook's summary) has none (404)."""
     docs = docs_or_503(request)
     _document_id(document_id)

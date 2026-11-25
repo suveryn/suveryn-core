@@ -10,8 +10,8 @@ from .config import RagSettings
 
 
 def ingest_main() -> None:
-    """``suveryn-ingest file.pdf [...]``: ingest PDF, Word, Excel, Markdown or CSV files; print id, status, warnings and timings per file (no text)."""
-    ap = argparse.ArgumentParser(prog="suveryn-ingest", description="Extract, chunk, embed and store documents (PDF, .docx, .xlsx, .md, .csv).")
+    """``suveryn-ingest file.pdf [...]``: ingest files of the kinds sūveryn reads (formats.KINDS; an .eml as its message only, its attachments are taken apart on upload); print id, status, warnings and timings per file (no text)."""
+    ap = argparse.ArgumentParser(prog="suveryn-ingest", description="Extract, chunk, embed and store documents (PDF, Word, Excel, Markdown, CSV, TSV, text, JSON, XML, HTML, an email's message).")
     ap.add_argument("pdf", nargs="+")
     ap.add_argument("--owner", help="Keycloak user id (sub) the documents belong to; without it they are "
                                     "visible to no user in the chat, only to these operator tools")

@@ -1,30 +1,50 @@
-"""Reading Word (.docx), Excel (.xlsx), Markdown (.md) and CSV (.csv) uploads.
+"""Reading uploads other than PDFs: Word (.docx), Excel (.xlsx), Markdown (.md), CSV and TSV, plain text
+(.txt), JSON, XML, HTML and an email's message (.eml).
 
 PDFs go through OCR and Docling's layout model (``extract``). These formats carry their text and
 structure in the file itself, so they are read directly, in the same sandboxed reader process
-(``isolation``): an Office file is a zip of XML, untrusted input like any PDF.
+(``isolation``): an Office file is a zip of XML, an email or a web page is text, all untrusted input like
+any PDF.
 
 What comes out is a list of passages, each with where it sits:
 
-- **Word and Markdown**: the section, as the chain of headings above the passage ("Article 2 ›
+- **Word, Markdown and HTML**: the section, as the chain of headings above the passage ("Article 2 ›
   The price"). A Word heading is a paragraph in a Heading or Title style, or one with an outline
-  level. Tables are kept as rows of cells; a long table is split by rows, its first row repeated.
-- **Excel and CSV**: the cells, as a range in Excel's own notation ("Prices!A2:D31", "A2:D31" in a
+  level; an HTML heading is h1 to h6. Tables are kept as rows of cells; a long table is split by rows,
+  its first row repeated.
+- **Excel, CSV and TSV**: the cells, as a range in Excel's own notation ("Prices!A2:D31", "A2:D31" in a
   CSV): language-neutral, and what a spreadsheet user types to find them. Values are read as
   last calculated (never formulas). The first non-empty row of a sheet is repeated at the top
   of every later passage of that sheet, so each passage says what its columns are.
+- **JSON and XML**: one line per value, "where: value", the where as the standard writes it: a JSON
+  Pointer (RFC 6901, "/parties/0/name") or an XPath of local names ("/deed/party[2]/name", "/deed/@id";
+  namespaces left out). A passage's place is the deepest path its lines share.
+- **Plain text**: by paragraph (a blank line between them).
+- **An email**: who sent it to whom, when and its subject (RFC 5322's field names), then its text: the body
+  (the plain text, or else the HTML, read as HTML is) and any other text part shown with it. Its
+  attachments are documents of their own, taken out by the document service (``service``).
 
 Nothing is left out of the body: a heading with no text under it becomes a passage of its own.
-Text outside the body (Word headers and footers, Markdown comments) is returned separately as
-``furniture``: it is checked for sūveryn's export mark (``marks``) but not stored as passages,
-as a PDF's repeating headers and footers aren't either. Tracked insertions are read, deletions
+Text outside the body (Word headers and footers, Markdown and HTML comments, an HTML page's title) is
+returned separately as ``furniture``: it is checked for sūveryn's export mark (``marks``) but not stored as
+passages, as a PDF's repeating headers and footers aren't either. Tracked insertions are read, deletions
 not: the document as it now reads.
+
+Text files are read as UTF-8 (with or without a byte-order mark), UTF-16 with its byte-order mark, or
+else Windows-1252 (``decode``); an HTML page may also say its encoding in a meta tag.
 """
 
+import codecs
 import csv
+import email
+import email.errors
+import email.policy
 import io
+import json
 import re
 import zipfile
+from email.message import EmailMessage
+from html.parser import HTMLParser
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
@@ -32,20 +52,26 @@ from pathlib import Path
 from .reading import Unreadable
 
 # File types by extension. The upload check (``looks_like``) and the reader confirm the content.
-KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".md": "md", ".markdown": "md", ".csv": "csv"}
-SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "md": ".md", "csv": ".csv"}
+KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".md": "md", ".markdown": "md", ".csv": "csv", ".tsv": "tsv",
+         ".txt": "txt", ".json": "json", ".xml": "xml", ".html": "html", ".htm": "html", ".eml": "eml"}
+SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "md": ".md", "csv": ".csv", "tsv": ".tsv", "txt": ".txt",
+          "json": ".json", "xml": ".xml", "html": ".html", "eml": ".eml"}
+TEXT_KINDS = {"md", "csv", "tsv", "txt", "json", "xml", "html", "eml"}
 # The type the gateway serves a kept file as (board G11, "Open document"): a PDF opens in the browser, Word and
-# Excel are downloaded, Markdown and CSV are shown as plain text (never as HTML).
+# Excel are downloaded, text files are shown as plain text (an HTML page too: never as HTML, so nothing in it
+# runs; in the character set it was read in: ``content_type``), an email is downloaded for the mail program.
 CONTENT_TYPE = {"pdf": "application/pdf",
                 "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "md": "text/plain; charset=utf-8", "csv": "text/plain; charset=utf-8"}
+                "eml": "message/rfc822",
+                **{kind: "text/plain; charset=utf-8" for kind in ("md", "csv", "tsv", "txt", "json", "xml", "html")}}
 
 # Limits for one file, checked before and while reading, so one upload can't exhaust the reader.
 MAX_UNPACKED_BYTES = 300 * 1024 * 1024   # an Office file's content once unzipped
 MAX_ZIP_ENTRIES = 10_000
-MAX_CELLS = 250_000                      # non-empty cells in a workbook or CSV
+MAX_CELLS = 250_000                      # non-empty cells in a workbook or CSV, values in a JSON or XML file
 MAX_CHARS = 5_000_000                    # text in one document (a 60-page deed is ~150,000)
+MAX_DEPTH = 100                          # JSON or XML nested deeper: no document is, and each place holds its path
 
 
 @dataclass(frozen=True)
@@ -66,24 +92,28 @@ class Reading:
 
 
 def kind_of(filename: str) -> str | None:
-    """"pdf", "docx", "xlsx", "md" or "csv" by the file's extension; None for anything else."""
+    """The file's kind by its extension ("pdf", "docx", "txt", ...: ``KINDS``); None for anything else."""
     return KINDS.get(Path(filename).suffix.lower())
 
 
+BOMS = (codecs.BOM_UTF8, codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)
+
+
 def looks_like(kind: str, head: bytes) -> bool:
-    """Whether the file's first bytes fit its kind: a PDF header, a zip for Office files, and no NUL
-    byte in text files (a binary file renamed to .csv or .md)."""
+    """Whether the file's first bytes fit its kind: a PDF header, a zip for Office files, and for text
+    files no NUL byte (a binary file renamed to .txt or .csv) unless it starts with a UTF-16 byte-order mark."""
     if kind == "pdf":
         return head.startswith(b"%PDF-")
     if kind in ("docx", "xlsx"):
         return head.startswith(b"PK\x03\x04")
-    return b"\x00" not in head
+    return head.startswith(BOMS[1:]) or b"\x00" not in head
 
 
 def read(path: Path, kind: str, limit: int) -> Reading:
     """Read one non-PDF file of ``kind``; passages of at most ``limit`` characters where they can be split.
-    Raises ValueError with a message that can be shown when the file can't be read."""
-    reader = {"docx": read_docx, "xlsx": read_xlsx, "md": read_markdown, "csv": read_csv}.get(kind)
+    Raises ``Unreadable`` with a code when the file can't be read."""
+    reader = {"docx": read_docx, "xlsx": read_xlsx, "md": read_markdown, "csv": read_csv, "tsv": read_tsv,
+              "txt": read_text, "json": read_json, "xml": read_xml, "html": read_html, "eml": read_email}.get(kind)
     if reader is None:
         raise Unreadable(f"no reader for {kind} files", "document.unsupported")
     reading = reader(Path(path), limit)
@@ -165,6 +195,50 @@ def rows_in_passages(rows: list[tuple[int, list[str]]], limit: int, headings: li
         size += line
     flush()
     return out
+
+
+class Outline:
+    """A document's body as it is read: text and tables in reading order, each under the chain of headings above
+    it (Word, Markdown, HTML). A heading with nothing under it before the next heading of its level or higher is
+    kept as text, so nothing is left out."""
+
+    def __init__(self) -> None:
+        self._stack: list[list] = []  # [level, heading, has something under it]
+        self._items: list[tuple[str, list[str], object]] = []  # ("text", headings, text) or ("table", headings, rows)
+
+    def headings(self) -> list[str]:
+        return [h for _, h, _ in self._stack]
+
+    def close_to(self, level: int) -> None:
+        """End the sections of ``level`` and deeper."""
+        while self._stack and self._stack[-1][0] >= level:
+            _, text, used = self._stack.pop()
+            if not used:
+                self._items.append(("text", self.headings(), text))
+
+    def heading(self, level: int, text: str) -> None:
+        """A heading of ``level`` (0 a title, 1 to 9): it ends the sections of its level and deeper."""
+        self.close_to(level)
+        self._stack.append([level, text, False])
+
+    def add(self, kind: str, content) -> None:
+        """Text (a string) or a table (rows of cells) under the current headings."""
+        for entry in self._stack:
+            entry[2] = True
+        self._items.append((kind, self.headings(), content))
+
+    def passages(self, limit: int) -> list[Passage]:
+        """Everything read, as passages of up to ``limit`` characters; a table's rows apart from the text."""
+        self.close_to(0)
+        passages: list[Passage] = []
+        texts: list[tuple[list[str], str]] = []
+        for kind, heads, content in self._items:
+            if kind == "text":
+                texts.append((heads, content))
+            else:
+                passages += pack(texts, limit) + rows_in_passages(list(enumerate(content, 1)), limit, heads)
+                texts = []
+        return passages + pack(texts, limit)
 
 
 def column_letter(n: int) -> str:
@@ -284,22 +358,7 @@ def read_docx(path: Path, limit: int) -> Reading:
     except Exception:  # noqa: BLE001 - python-docx raises many kinds for a broken file
         raise Unreadable("the file is not a valid Word file", "document.damaged") from None
     styles = _heading_styles(document)
-    stack: list[list] = []  # [level, heading, has text under it]
-    items: list[tuple[str, list[str], object]] = []  # ("text", headings, text) or ("table", headings, rows)
-
-    def headings() -> list[str]:
-        return [h for _, h, _ in stack]
-
-    def close_to(level: int) -> None:
-        while stack and stack[-1][0] >= level:
-            _, text, used = stack.pop()
-            if not used:  # a heading with nothing under it is text too
-                items.append(("text", headings(), text))
-
-    def add(kind: str, content) -> None:
-        for entry in stack:
-            entry[2] = True
-        items.append((kind, headings(), content))
+    outline = Outline()
 
     def walk(container) -> None:
         for el in container:
@@ -308,29 +367,18 @@ def read_docx(path: Path, limit: int) -> Reading:
                     continue
                 level = _heading_level(el, styles)
                 if level is None:
-                    add("text", text)
+                    outline.add("text", text)
                 else:
-                    close_to(level)
-                    stack.append([level, " ".join(text.split()), False])
+                    outline.heading(level, " ".join(text.split()))
             elif el.tag == f"{W}tbl":
                 if rows := _table_rows(el):
-                    add("table", rows)
+                    outline.add("table", rows)
             elif el.tag == f"{W}sdt":  # a content control around paragraphs or tables
                 if (content := el.find(f"{W}sdtContent")) is not None:
                     walk(content)
 
     walk(document.element.body)
-    close_to(0)
-
-    passages: list[Passage] = []
-    texts: list[tuple[list[str], str]] = []
-    for kind, heads, content in items:
-        if kind == "text":
-            texts.append((heads, content))
-        else:
-            passages += pack(texts, limit) + rows_in_passages(list(enumerate(content, 1)), limit, heads)
-            texts = []
-    passages += pack(texts, limit)
+    passages = outline.passages(limit)
 
     furniture = []
     for section in document.sections:
@@ -374,17 +422,50 @@ def read_xlsx(path: Path, limit: int) -> Reading:
 
 
 # ---------------------------------------------------------------------- text files
-def decode(data: bytes) -> str:
-    """A text file's content: UTF-8 (with or without a byte-order mark), else Windows-1252, the code page
-    Excel and older tools use for "CSV" and text in Belgium."""
+def encoding(data: bytes) -> str:
+    """The encoding a text file is read in: UTF-16 by its byte-order mark (what Windows calls "Unicode"), UTF-8
+    (with or without a byte-order mark), else Windows-1252, the code page Excel and older tools use for "CSV" and
+    text in Belgium."""
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return "utf-16"
     try:
-        return data.decode("utf-8-sig")
+        data.decode("utf-8")
     except UnicodeDecodeError:
-        return data.decode("cp1252", errors="replace")
+        return "windows-1252"
+    return "utf-8"
+
+
+def decode(data: bytes) -> str:
+    """A text file's content, in its ``encoding``."""
+    name = encoding(data)
+    return data.decode("utf-8-sig" if name == "utf-8" else name, errors="replace")
+
+
+def content_type(data: bytes, kind: str) -> str:
+    """The type a kept file is served as (``CONTENT_TYPE``), a text file's with the character set it was read in,
+    so "Open document" shows its accents as they are."""
+    if kind not in TEXT_KINDS or kind == "eml":
+        return CONTENT_TYPE.get(kind, "application/octet-stream")
+    name = html_encoding(data) if kind == "html" else encoding(data)
+    return f"text/plain; charset={name}"
 
 
 class Semicolons(csv.excel):
     delimiter = ";"
+
+
+def _rows(text: str, dialect) -> list[tuple[int, list[str]]]:
+    """A delimited file's non-empty rows, numbered as a spreadsheet numbers them."""
+    rows = []
+    cells = 0
+    for number, values in enumerate(csv.reader(io.StringIO(text), dialect), 1):
+        row = trimmed([" ".join(v.split()) for v in values])
+        if row:
+            cells += sum(1 for c in row if c)
+            if cells > MAX_CELLS:
+                raise Unreadable(f"the file has more than {MAX_CELLS:,} filled cells".replace(",", " "), "document.too_large")
+            rows.append((number, row))
+    return rows
 
 
 def read_csv(path: Path, limit: int) -> Reading:
@@ -395,16 +476,18 @@ def read_csv(path: Path, limit: int) -> Reading:
         dialect = csv.Sniffer().sniff(sample, delimiters=";,\t")
     except csv.Error:  # one column, or too irregular to tell: semicolons, as Belgian Excel writes them
         dialect = Semicolons if sample.count(";") >= sample.count(",") else csv.excel
-    rows = []
-    cells = 0
-    for number, values in enumerate(csv.reader(io.StringIO(text), dialect), 1):
-        row = trimmed([" ".join(v.split()) for v in values])
-        if row:
-            cells += sum(1 for c in row if c)
-            if cells > MAX_CELLS:
-                raise Unreadable(f"the file has more than {MAX_CELLS:,} filled cells".replace(",", " "), "document.too_large")
-            rows.append((number, row))
-    return Reading(rows_in_passages(rows, limit, cells=True))
+    return Reading(rows_in_passages(_rows(text, dialect), limit, cells=True))
+
+
+def read_tsv(path: Path, limit: int) -> Reading:
+    """A TSV file's rows (tab-separated values, as IANA's text/tab-separated-values), as cell ranges."""
+    return Reading(rows_in_passages(_rows(decode(path.read_bytes()), csv.excel_tab), limit, cells=True))
+
+
+def read_text(path: Path, limit: int) -> Reading:
+    """A plain text file by paragraph: the text between blank lines."""
+    text = decode(path.read_bytes()).replace("\r\n", "\n").replace("\r", "\n")
+    return Reading(pack([([], p.strip()) for p in re.split(r"\n[ \t]*\n", text) if p.strip()], limit))
 
 
 ATX = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
@@ -418,28 +501,15 @@ def read_markdown(path: Path, limit: int) -> Reading:
     text = decode(path.read_bytes()).replace("\r\n", "\n")
     furniture = [" ".join(c.split()) for c in COMMENT.findall(text) if c.strip()]
     text = COMMENT.sub("", text)
-    stack: list[list] = []  # [level, heading, has text under it]
-    items: list[tuple[list[str], str]] = []
+    outline = Outline()
     paragraph: list[str] = []
     in_fence = False
-
-    def headings() -> list[str]:
-        return [h for _, h, _ in stack]
 
     def flush() -> None:
         body = "\n".join(paragraph).strip()
         paragraph.clear()
         if body:
-            for entry in stack:
-                entry[2] = True
-            items.append((headings(), body))
-
-    def close_to(level: int) -> None:
-        flush()
-        while stack and stack[-1][0] >= level:
-            _, text, used = stack.pop()
-            if not used:  # a heading with nothing under it is text too
-                items.append((headings(), text))
+            outline.add("text", body)
 
     for line in text.split("\n"):
         if FENCE.match(line):
@@ -448,16 +518,456 @@ def read_markdown(path: Path, limit: int) -> Reading:
         elif in_fence:
             paragraph.append(line)
         elif m := ATX.match(line):
-            close_to(len(m.group(1)))
-            stack.append([len(m.group(1)), m.group(2).strip(), False])
+            flush()
+            outline.heading(len(m.group(1)), m.group(2).strip())
         elif (m := SETEXT.match(line)) and len(paragraph) == 1 and paragraph[0].strip():
             title = paragraph.pop().strip()
-            level = 1 if m.group(1)[0] == "=" else 2
-            close_to(level)
-            stack.append([level, title, False])
+            outline.heading(1 if m.group(1)[0] == "=" else 2, title)
         elif not line.strip():
             flush()
         else:
             paragraph.append(line)
-    close_to(0)
-    return Reading(pack(items, limit), furniture)
+    flush()
+    return Reading(outline.passages(limit), furniture)
+
+
+# ---------------------------------------------------------------------- JSON and XML: one line per value
+def _paths_in_passages(lines: list[tuple[tuple, str]], limit: int, where) -> list[Passage]:
+    """Lines (path, "where: value") as passages of up to ``limit`` characters, each placed at the deepest path
+    its lines share (``where`` writes a path as the standard does; None for the whole document). A line longer
+    than ``limit`` is cut, each piece placed at its own path."""
+    out: list[Passage] = []
+    group: list[tuple[tuple, str]] = []
+
+    def flush() -> None:
+        if group:
+            shared = group[0][0]
+            for path, _ in group[1:]:
+                n = 0
+                while n < min(len(shared), len(path)) and shared[n] == path[n]:
+                    n += 1
+                shared = shared[:n]
+            out.append(Passage("\n".join(line for _, line in group), [], where(shared)))
+            group.clear()
+
+    size = 0
+    for path, line in lines:
+        if len(line) > limit:
+            flush()
+            size = 0
+            out += [Passage(piece, [], where(path)) for piece in split_text(line, limit)]
+            continue
+        if group and size + len(line) + 1 > limit:
+            flush()
+            size = 0
+        group.append((path, line))
+        size += len(line) + 1
+    flush()
+    return out
+
+
+def json_pointer(path: tuple) -> str | None:
+    """A path of keys and indexes as a JSON Pointer (RFC 6901: "/parties/0/name", "~" and "/" escaped)."""
+    return "".join("/" + str(p).replace("~", "~0").replace("/", "~1") for p in path) or None
+
+
+def read_json(path: Path, limit: int) -> Reading:
+    """A JSON file's values, one line each ("/parties/0/name: Lotte Verbeke"), in the file's order; empty
+    objects and arrays hold nothing to read."""
+    try:
+        document = json.loads(decode(path.read_bytes()))
+    except (ValueError, RecursionError):
+        raise Unreadable("the file is not valid JSON", "document.damaged") from None
+    lines: list[tuple[tuple, str]] = []
+    stack: list[tuple[tuple, object]] = [((), document)]
+    while stack:  # depth first, in the file's order, without recursion (a deeply nested file can't exhaust it)
+        where, value = stack.pop()
+        if len(where) > MAX_DEPTH:
+            raise Unreadable(f"the file is nested more than {MAX_DEPTH} levels deep", "document.too_large")
+        if isinstance(value, dict):
+            stack += [((*where, k), v) for k, v in reversed(list(value.items()))]
+        elif isinstance(value, list):
+            stack += [((*where, i), v) for i, v in reversed(list(enumerate(value)))]
+        else:
+            text = " ".join(value.split()) if isinstance(value, str) else json.dumps(value)
+            lines.append((where, f"{json_pointer(where)}: {text}" if where else text))
+            if len(lines) > MAX_CELLS:
+                raise Unreadable(f"the file has more than {MAX_CELLS:,} values".replace(",", " "), "document.too_large")
+    return Reading(_paths_in_passages(lines, limit, json_pointer))
+
+
+def _local(name: str) -> str:
+    """An XML name without its namespace ("{urn:x}deed" -> "deed")."""
+    return name.rsplit("}", 1)[-1]
+
+
+def xpath(path: tuple) -> str | None:
+    """A path of steps as an XPath of local names ("/deed/party[2]/name"; a namespace is left out, as people
+    read the file); None for the whole document."""
+    return "".join("/" + step for step in path) or None
+
+
+def read_xml(path: Path, limit: int) -> Reading:
+    """An XML file's attributes and text, one line each ("/deed/party[2]/name: Lotte Verbeke", "/deed/@id: 7"),
+    in document order. Read with defusedxml: a file that declares entities or points outside itself isn't read."""
+    import defusedxml
+    from defusedxml.ElementTree import ParseError
+    from defusedxml.ElementTree import parse as parse_xml
+
+    try:
+        root = parse_xml(str(path)).getroot()
+    except defusedxml.DefusedXmlException:
+        raise Unreadable("the XML file declares entities or refers to other files, which aren't read", "document.unreadable") from None
+    except (ParseError, RecursionError):
+        raise Unreadable("the file is not valid XML", "document.damaged") from None
+    lines: list[tuple[tuple, str]] = []
+    stack: list[tuple[tuple, object]] = [((_local(root.tag),), root)]
+    while stack:
+        if len(lines) > MAX_CELLS:
+            raise Unreadable(f"the file has more than {MAX_CELLS:,} values".replace(",", " "), "document.too_large")
+        where, el = stack.pop()
+        if len(where) > MAX_DEPTH:
+            raise Unreadable(f"the file is nested more than {MAX_DEPTH} levels deep", "document.too_large")
+        for name, value in el.attrib.items():
+            if value.strip():
+                lines.append((where, f"{xpath(where)}/@{_local(name)}: {' '.join(value.split())}"))
+        own = " ".join(" ".join([el.text or "", *(child.tail or "" for child in el)]).split())
+        if own and len(el):  # mixed content, prose with markup ("Some <b>bold</b> text"): its whole text, as it reads
+            lines.append((where, f"{xpath(where)}: {' '.join(''.join(el.itertext()).split())}"))
+            continue
+        if own:
+            lines.append((where, f"{xpath(where)}: {own}"))
+        children = [c for c in el if isinstance(c.tag, str)]
+        named: dict[str, int] = {}
+        for c in children:
+            named[_local(c.tag)] = named.get(_local(c.tag), 0) + 1
+        seen: dict[str, int] = {}
+        steps = []
+        for c in children:  # as XPath counts: a position only where siblings share the name
+            name = _local(c.tag)
+            seen[name] = seen.get(name, 0) + 1
+            steps.append(((*where, f"{name}[{seen[name]}]" if named[name] > 1 else name), c))
+        stack += reversed(steps)
+    return Reading(_paths_in_passages(lines, limit, xpath))
+
+
+# ---------------------------------------------------------------------- HTML
+META_CHARSET = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?\s*([A-Za-z0-9_:.-]+)""", re.IGNORECASE)
+
+
+def html_encoding(data: bytes) -> str:
+    """An HTML page's encoding: by its byte-order mark, else the one a meta tag says (in its first 1,024 bytes, as
+    browsers look), else as any text file's (``encoding``). Latin-1 and ASCII are read as Windows-1252, as browsers
+    read them."""
+    if not data.startswith(BOMS) and (m := META_CHARSET.search(data[:1024])):
+        try:
+            name = codecs.lookup(m.group(1).decode("ascii")).name
+        except LookupError:
+            name = None
+        if name:
+            return "windows-1252" if name in ("latin-1", "iso8859-1", "ascii", "cp1252") else name
+    return encoding(data)
+
+
+def decode_html(data: bytes) -> str:
+    """An HTML page's text, in its ``html_encoding``."""
+    name = html_encoding(data)
+    return data.decode("utf-8-sig" if name == "utf-8" else name, errors="replace")
+
+
+BREAK = "\u2028"  # a <br> while a block's text is gathered (Unicode's line separator)
+
+
+class _Page(HTMLParser):
+    """An HTML page into an ``Outline``: h1 to h6 as headings, tables by row, the rest by block; scripts, styles
+    and the head (but for its title, kept as furniture) left out. A head ends at its end tag or at the first tag a
+    head can't hold, as browsers read a page that leaves it out."""
+
+    SKIP = {"script", "style"}  # never shown; the parser reads them as raw text up to their end tag
+    # What a head may hold (HTML's metadata content): any other tag ends a head whose end tag was left out, as
+    # browsers do; only a page's title is kept from it, as furniture.
+    HEAD = {"head", "title", "meta", "link", "base", "style", "script", "noscript", "template"}
+    BLOCK = {"p", "div", "br", "li", "ul", "ol", "dl", "dt", "dd", "blockquote", "pre", "section", "article", "header",
+             "footer", "nav", "aside", "main", "figure", "figcaption", "address", "hr", "form", "fieldset", "details",
+             "summary", "caption", "body", "html"}
+    HEADINGS = {f"h{n}": n for n in range(1, 7)}
+
+    def __init__(self, outline: Outline) -> None:
+        super().__init__(convert_charrefs=True)
+        self.outline = outline
+        self.furniture: list[str] = []
+        self.skip = 0           # inside a tag whose content isn't read
+        self.head = False       # inside the head
+        self.pre = 0
+        self.title: list[str] | None = None
+        self.text: list[str] = []
+        self.heading: tuple[int, list[str]] | None = None
+        self.tables = 0         # how deep in tables: only the outermost is kept as rows
+        self.rows: list[list[str]] = []
+        self.cell: list[str] | None = None
+
+    def flush(self) -> None:
+        joined = "".join(self.text)
+        self.text = []
+        if self.pre:
+            text = "\n".join(line.strip() for line in joined.replace(BREAK, "\n").strip("\n").split("\n"))
+        else:  # whitespace as a browser shows it: runs collapsed, a line only where <br> breaks it
+            text = "\n".join(line for line in (" ".join(part.split()) for part in joined.split(BREAK)) if line)
+        if text.strip():
+            self.outline.add("text", text.strip())
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "head":
+            self.head = True
+            return
+        if self.head and tag not in self.HEAD:
+            self.head = False
+        if tag == "title" and self.head and self.title is None:
+            self.title = []
+            return
+        if tag in self.SKIP:
+            self.skip += 1
+            return
+        if self.skip:
+            return
+        if tag == "table":
+            self.tables += 1
+            if self.tables == 1:
+                self.flush()
+                self.rows = []
+            return
+        if self.tables == 1 and tag == "tr":
+            self.rows.append([])
+        elif self.tables == 1 and tag in ("td", "th"):
+            self.cell = []
+        elif self.tables > 1 and tag in ("td", "th", "tr") and self.cell is not None:
+            self.cell.append(" ")
+        elif tag in self.HEADINGS and self.tables == 0:
+            self.flush()
+            self.heading = (self.HEADINGS[tag], [])
+        elif tag == "br":
+            (self.cell if self.cell is not None else self.text).append(BREAK if self.cell is None else " ")
+        elif tag in self.BLOCK and self.tables == 0:
+            if tag == "pre":
+                self.flush()
+                self.pre += 1
+            elif not self.pre:
+                self.flush()
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in ("br", "hr") and tag in self.SKIP | self.BLOCK | set(self.HEADINGS):
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        if tag == "head":
+            self.head = False
+            return
+        if tag == "title" and self.title:
+            if title := " ".join("".join(self.title).split()):
+                self.furniture.append(title)
+            self.title = None
+            return
+        if tag in self.SKIP:
+            self.skip = max(0, self.skip - 1)
+            return
+        if self.skip:
+            return
+        if tag == "table" and self.tables:
+            self.tables -= 1
+            if self.tables == 0:
+                self.end_cell()
+                self.flush()
+                if rows := [trimmed(r) for r in self.rows if any(r)]:
+                    self.outline.add("table", rows)
+                self.rows = []
+            return
+        if self.tables == 1 and tag in ("td", "th"):
+            self.end_cell()
+        elif tag in self.HEADINGS and self.heading is not None and self.tables == 0:
+            level, parts = self.heading
+            self.heading = None
+            if text := " ".join("".join(parts).split()):
+                self.outline.heading(level, text)
+        elif tag in self.BLOCK and self.tables == 0:
+            if tag == "pre":
+                self.flush()
+                self.pre = max(0, self.pre - 1)
+            elif not self.pre:
+                self.flush()
+
+    def end_cell(self) -> None:
+        if self.cell is not None:
+            if not self.rows:
+                self.rows.append([])
+            self.rows[-1].append(" ".join("".join(self.cell).split()))
+            self.cell = None
+
+    def handle_data(self, data):
+        if self.title is not None:
+            self.title.append(data)
+            return
+        if self.head and not self.skip and data.strip():
+            self.head = False  # text the head can't hold: the body has begun, as browsers read it
+        if self.skip or self.head:
+            return
+        if self.cell is not None:
+            self.cell.append(data)
+        elif self.heading is not None:
+            self.heading[1].append(data)
+        else:
+            self.text.append(data)
+
+    def handle_comment(self, data):
+        if data.strip():
+            self.furniture.append(" ".join(data.split()))
+
+    def finish(self) -> list[str]:
+        self.close()
+        if self.title:  # a title never closed: what followed it is the page
+            self.handle_data("")
+            self.text.append("".join(self.title))
+            self.title = None
+        self.end_cell()
+        if self.tables and (rows := [trimmed(r) for r in self.rows if any(r)]):  # a table never closed
+            self.outline.add("table", rows)
+        if self.heading is not None and (text := " ".join("".join(self.heading[1]).split())):
+            self.outline.heading(self.heading[0], text)
+        self.flush()
+        return self.furniture
+
+
+def read_html(path: Path, limit: int) -> Reading:
+    """An HTML page by section (h1 to h6), its tables by rows; its title and comments as furniture."""
+    outline = Outline()
+    page = _Page(outline)
+    page.feed(decode_html(path.read_bytes()))
+    furniture = page.finish()
+    return Reading(outline.passages(limit), furniture)
+
+
+# ---------------------------------------------------------------------- email
+EMAIL_FIELDS = ("From", "To", "Cc", "Date", "Subject")  # RFC 5322's own field names, the same in every language
+MAX_EMAIL_DEPTH = 20  # parts inside parts: deeper than any mail program writes
+
+
+MAX_EMAIL_PARTS = 5_000  # parts in one email: far beyond a real one's, and bounds the parsing
+BOUNDARY_LINE = re.compile(rb"^--", re.MULTILINE)  # every part starts at one (RFC 2046); a signature's "-- " counts too
+
+
+def parse_email(data: bytes) -> EmailMessage:
+    """An .eml file (RFC 5322 with MIME) as Python's email package reads it, with today's rules. Raises
+    ``Unreadable`` for one it can't take apart (nested past Python's recursion limit, say), or with more parts
+    than any real email has (counted before parsing, which costs time and memory for each)."""
+    if len(BOUNDARY_LINE.findall(data)) > MAX_EMAIL_PARTS:
+        raise Unreadable(f"the email has more than {MAX_EMAIL_PARTS} parts", "document.too_large")
+    try:
+        message = email.message_from_bytes(data, policy=email.policy.default)
+    except (RecursionError, email.errors.MessageError, ValueError, TypeError, IndexError, LookupError):
+        raise Unreadable("the email can't be taken apart", "document.damaged") from None
+    return message
+
+
+@dataclass
+class EmailParts:
+    """What an email holds: the text people read (the body, and any other text part shown with it, as a mailing
+    list's footer), and everything else as attachments with their file names."""
+
+    texts: list[EmailMessage]
+    attachments: list[tuple[str, EmailMessage]]
+
+
+def email_parts(message: EmailMessage) -> EmailParts:
+    """Every part of the email, once: the body (the plain text, or else the HTML: RFC 2046's alternatives, as a
+    mail program picks), other text parts shown inline, and the rest as attachments, a picture shown in the HTML
+    too. Only the body's other renderings are left out (the text of its alternatives; a file among them is
+    listed, a calendar invitation too), and the parts of an email forwarded inside it ("message/rfc822"), which is an attachment of its own. A part without a file name is
+    "attachment-N" with the extension of its type. Raises ``Unreadable`` when it can't be taken apart."""
+    import mimetypes
+
+    try:
+        try:
+            body = message.get_body(preferencelist=("plain", "html"))
+        except (KeyError, LookupError, ValueError):
+            body = None
+        others: set[int] = set()  # the body's other renderings: text in its alternatives
+        texts: list[EmailMessage] = []
+        attachments: list[tuple[str, EmailMessage]] = []
+        stack: list[tuple[EmailMessage, int, list[EmailMessage]]] = [(message, 0, [])]
+        found: list[tuple[EmailMessage, list[EmailMessage]]] = []
+        while stack:  # depth first, in the email's order, without recursion
+            part, depth, parents = stack.pop()
+            if part is not message and part.get_content_type() == "message/rfc822":
+                found.append((part, parents))
+            elif part.is_multipart():
+                if depth >= MAX_EMAIL_DEPTH:
+                    raise Unreadable("the email has parts nested too deep", "document.damaged")
+                stack += [(p, depth + 1, [*parents, part]) for p in reversed(list(part.iter_parts()))]
+            else:
+                found.append((part, parents))
+        if body is not None:
+            parents = next((ps for p, ps in found if p is body), [])
+            for ancestor, child in zip(parents, [*parents[1:], body]):
+                if ancestor.get_content_type() == "multipart/alternative":  # only the other text: a file in them is listed
+                    others |= {id(p) for p, ps in found if ancestor in ps and child not in ps and p is not child
+                               and p.get_content_type() in ("text/plain", "text/html") and not p.get_filename()
+                               and p.get_content_disposition() != "attachment"}
+        for part, _ in found:
+            if part is body:
+                texts.append(part)
+                continue
+            if id(part) in others:
+                continue
+            name = part.get_filename()
+            if (part.get_content_type() in ("text/plain", "text/html") and not name
+                    and part.get_content_disposition() != "attachment"):
+                texts.append(part)  # shown with the body
+                continue
+            extension = ".eml" if part.get_content_type() == "message/rfc822" else mimetypes.guess_extension(part.get_content_type()) or ""
+            attachments.append((name or f"attachment-{len(attachments) + 1}{extension}", part))
+    except (RecursionError, email.errors.MessageError, ValueError, TypeError, IndexError, LookupError):
+        raise Unreadable("the email can't be taken apart", "document.damaged") from None
+    return EmailParts(texts, attachments)
+
+
+def email_text(part: EmailMessage) -> str:
+    """A text part's content, in the character set it says (else as a text file is read)."""
+    try:
+        content = part.get_content()
+    except (LookupError, ValueError, AttributeError):
+        content = part.get_payload(decode=True) or b""
+    return decode(content) if isinstance(content, bytes) else content
+
+
+def read_email(path: Path, limit: int) -> Reading:
+    """An email: who sent it to whom, when and its subject (RFC 5322's field names), then its text; all under its
+    subject. Its attachments are documents of their own (``service``)."""
+    message = parse_email(path.read_bytes())
+    parts = email_parts(message)
+    outline = Outline()
+    fields = []
+    for name in EMAIL_FIELDS:
+        try:
+            value = message.get(name)
+            value = " ".join(str(value).split()) if value is not None else ""
+        except (ValueError, TypeError, IndexError, LookupError, RecursionError):  # a header that can't be made sense of:
+            raw = next((v for k, v in message.raw_items() if k.lower() == name.lower()), "")  # as written
+            value = " ".join(str(raw).split())
+        if value:
+            fields.append((name, value))
+    if subject := dict(fields).get("Subject"):
+        outline.heading(0, subject)
+    if fields:
+        outline.add("text", "\n".join(f"{n}: {v}" for n, v in fields))
+    furniture: list[str] = []
+    for part in parts.texts:
+        content = email_text(part)
+        if part.get_content_subtype() == "html":
+            page = _Page(outline)
+            page.feed(content)
+            furniture += page.finish()
+        else:
+            for paragraph in re.split(r"\n[ \t]*\n", content.replace("\r\n", "\n")):
+                if paragraph.strip():
+                    outline.add("text", paragraph.strip())
+    return Reading(outline.passages(limit), furniture)

@@ -3196,6 +3196,7 @@ name = "suveryn-rag"
 version = "0.1.0"
 source = { editable = "packages/rag" }
 dependencies = [
+    { name = "defusedxml" },
     { name = "docling" },
     { name = "ocrmypdf" },
     { name = "openpyxl" },
@@ -3210,6 +3211,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "defusedxml", specifier = ">=0.7" },
     { name = "docling", specifier = ">=2.40" },
     { name = "ocrmypdf", specifier = ">=16.0" },
     { name = "openpyxl", specifier = ">=3.1" },

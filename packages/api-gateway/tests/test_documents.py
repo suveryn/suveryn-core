@@ -318,7 +318,7 @@ def test_upload_rejects_other_file_types():
     svc = DocumentService(RagSettings(work_dir=Path(tempfile.mkdtemp())))
     svc.state = "ready"  # don't load models; only the upload path is exercised
     with client(svc) as c:
-        r = c.post("/v1/documents", files={"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")})
+        r = c.post("/v1/documents", files={"file": ("notes.pages", io.BytesIO(b"hello"), "application/octet-stream")})
         assert r.status_code == 415
         uploads = svc.settings.work_dir / "uploads"
         assert not uploads.exists() or not any(uploads.iterdir())  # the rejected upload is not left behind
@@ -449,6 +449,35 @@ def test_a_zip_adds_each_document_inside_and_says_what_was_left_out():
         assert r.json()["skipped"] == [{"name": "a.jpg", "failure": UNSUPPORTED}]
         r = c.post("/v1/documents", files={"file": ("empty.zip", io.BytesIO(zip_of({})), "application/zip")})
         assert r.status_code == 415 and r.json()["code"] == "upload.archive_empty"
+
+
+def test_a_text_file_is_added_and_an_email_adds_its_message_and_attachments():
+    """suveryn-tracker#267: a .txt was refused with 415; an .eml is taken apart as a .zip is."""
+    from email.message import EmailMessage
+
+    import pytest
+    pytest.importorskip("suveryn_rag")
+    import tempfile
+    from pathlib import Path
+
+    from suveryn_rag.config import RagSettings
+    from suveryn_rag.service import DocumentService
+
+    svc = DocumentService(RagSettings(work_dir=Path(tempfile.mkdtemp())))
+    svc.state = "ready"  # no worker: the documents stay queued
+    m = EmailMessage()
+    m["From"], m["To"], m["Subject"] = "lotte@firm.example", "jan@firm.example", "Deed"
+    m.set_content("The deed is attached.")
+    m.add_attachment(b"%PDF-1.7 a deed", maintype="application", subtype="pdf", filename="akte.pdf")
+    m.add_attachment(b"\xff\xd8\xff", maintype="image", subtype="jpeg", filename="photo.jpg")
+    with client(svc) as c:
+        r = c.post("/v1/documents", files={"file": ("notes.txt", io.BytesIO(b"Notes."), "text/plain")})
+        assert r.status_code == 202 and r.json()["filename"] == "notes.txt"
+        r = c.post("/v1/documents", files={"file": ("Deed.EML", io.BytesIO(bytes(m)), "message/rfc822")})
+        assert r.status_code == 202
+        body = r.json()
+        assert body["archive"] == "Deed.EML" and [j["filename"] for j in body["jobs"]] == ["Deed.EML", "akte.pdf"]
+        assert body["skipped"] == [{"name": "photo.jpg", "failure": UNSUPPORTED}]
 
 
 def zip_of(entries: dict) -> bytes:

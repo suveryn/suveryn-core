@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     embedding    vector({dim}) NOT NULL,
     origin       text NOT NULL DEFAULT 'chunker',
     tsv          tsvector,
-    place        text,  -- a spreadsheet passage's cells, e.g. 'Prices!A2:D31' (formats.py); NULL for everything else
+    place        text,  -- a spreadsheet passage's cells ('Prices!A2:D31'), a JSON Pointer or an XPath (formats.py); NULL for everything else
     UNIQUE (document_id, chunk_index)
 );
 CREATE INDEX IF NOT EXISTS chunks_document_id ON chunks (document_id);
@@ -170,7 +170,7 @@ class StoredChunk:
     origin: str
     score: float       # fused rank score (higher is better), only comparable within one query
     similarity: float  # cosine similarity to the question, 1.0 = identical direction
-    place: str | None = None  # a spreadsheet passage's cells (formats.py)
+    place: str | None = None  # a spreadsheet passage's cells, a JSON Pointer or an XPath (formats.py)
 
 
 class Store:

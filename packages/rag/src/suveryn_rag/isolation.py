@@ -98,7 +98,7 @@ def _settings_for_child(settings: RagSettings) -> dict:
 
 
 def _document_from_json(data: dict | None):
-    if data is None:  # a Word, Excel, Markdown or CSV file: passages instead
+    if data is None:  # any other kind of file (formats): passages instead
         return None
     from docling_core.types.doc import DoclingDocument
 
