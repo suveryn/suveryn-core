@@ -221,9 +221,9 @@ class LlamaServerClient:
         if what it sent back can't be read.
 
         With ``user`` (the Keycloak user id), the call's token counts go to ``on_usage`` as ``kind``.
-        The answer is received as a stream (``stream``) and put together here, so a call that is cancelled
-        (a playbook run stopped while it reads), times out or breaks off still records what it used
-        (suveryn-tracker#270).
+        The answer is received as a stream (``stream``) and put together here, so a call that is cancelled,
+        times out or breaks off after the model began to answer still records what it used (suveryn-tracker#270);
+        llama-server sends no counts before its first piece.
         """
         answer, reasoning, finish_reason, usage = [], [], None, Usage()
         async with aclosing(self.stream(req, user=user, kind=kind)) as chunks:
@@ -275,6 +275,9 @@ class LlamaServerClient:
                         break
                     try:
                         d = json.loads(data)
+                        if isinstance(e := d.get("error"), dict):
+                            # llama-server failing after it began to answer: an event, the HTTP status already sent
+                            raise BackendError(f"model backend failed while answering: {e.get('type')} {e.get('code')}"[:200])
                         if isinstance(t := d.get("timings"), dict):
                             prompt_n = int(t.get("prompt_n") or prompt_n)
                             predicted_n = int(t.get("predicted_n") or predicted_n)

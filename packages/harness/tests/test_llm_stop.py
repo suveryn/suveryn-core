@@ -1,7 +1,6 @@
 """Stopping a streamed answer (docs/design/chat-ui.md §5): the connection to llama-server is closed, so it
 stops generating, and the tokens used until then are still recorded for the user (suveryn-tracker#7). A whole
-answer is received as a stream too, so one that is stopped (a playbook run stopped while it reads) counts the same
-way (suveryn-tracker#270)."""
+answer is received as a stream too, so one that is cancelled counts the same way (suveryn-tracker#270)."""
 
 import asyncio
 import json
@@ -107,7 +106,7 @@ def test_without_running_counts_the_words_received_are_recorded():
 
 
 def test_a_whole_answer_stopped_halfway_records_what_was_used():
-    """suveryn-tracker#270: a whole answer (a playbook's reading) cancelled while the model writes it."""
+    """suveryn-tracker#270: a whole answer (a playbook's reading) whose task is cancelled while the model writes it."""
     state: dict = {}
     seen: list[UsageRecord] = []
 
@@ -148,3 +147,30 @@ def test_a_server_that_answers_in_one_go_is_an_answer_that_cant_be_read():
 
     with pytest.raises(UnreadableAnswer):
         asyncio.run(go())
+
+
+def test_a_server_that_fails_while_it_answers_is_a_model_that_is_down():
+    """llama-server reports a failure after it began to answer as an event: not an answer cut short."""
+    from suveryn_harness.llm import BackendError
+    seen: list[UsageRecord] = []
+
+    async def record(r: UsageRecord) -> None:
+        seen.append(r)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in ("/models", "/v1/models"):
+            return httpx.Response(404 if request.url.path == "/models" else 200, json={"data": [{"id": "model.gguf"}]})
+        failed = {"error": {"code": 500, "message": "a failure", "type": "server_error"}}
+        body = chunk("The ", {"prompt_n": 900, "predicted_n": 1}) + f"data: {json.dumps(failed)}\n\n".encode()
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    async def go():
+        llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler), on_usage=record)
+        try:
+            await llm.complete(REQ, user="user-a")
+        finally:
+            await llm.aclose()
+
+    with pytest.raises(BackendError, match="server_error 500"):
+        asyncio.run(go())
+    assert [(r.prompt_tokens, r.completion_tokens) for r in seen] == [(900, 1)]  # what it used is still counted
