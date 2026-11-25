@@ -2,7 +2,7 @@
 
 Runs the real reader loop (``serve``) with a fake extraction. The file name asks for a behaviour:
 crash, hang, garbage, hostile (a forged crash report), env (report the names of PATH and SUVERYN_* variables), a spreadsheet's passages
-(prices.xlsx), malformed passages (bad.xlsx), progress (three OCR pages reported, then the document),
+(prices.xlsx), a deck's slides (deck.pptx), malformed passages (bad.xlsx, bad.pptx), progress (three OCR pages reported, then the document),
 slow (reports a page, then takes a minute), locked (a protected PDF), anything else: a one-page document.
 """
 
@@ -54,6 +54,12 @@ def fake_extract(pdf: Path, watch: Watch | None = None) -> Extraction:
         return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0, timings={"read": 0.1},
                           passages=[Passage("| Item | Amount |\n| Price | 300000 |", [], "Prices!A1:B2")],
                           furniture=["a footer"])
+    if pdf.name == "deck.pptx":
+        return Extraction(document=None, pages=2, ocr_pages=0, mixed_pages=0,
+                          passages=[Passage("First point", ["Intake"], None, 1), Passage("Second", [], None, 2)])
+    if pdf.name == "bad.pptx":
+        return Extraction(document=None, pages=1, ocr_pages=0, mixed_pages=0,
+                          passages=[Passage("text", [], None, 0)])  # a slide is numbered from 1
     if pdf.name == "bad.xlsx":
         return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0,
                           passages=[Passage("text", [7], None)])  # headings must be strings

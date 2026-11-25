@@ -100,6 +100,25 @@ def test_an_email_is_read_with_its_attachment_and_an_answer_cites_it(page, tmp_p
     assert page.get_by_role("button", name=re.compile(r"Source \d+: voorwaarden\.txt")).count() >= 1
 
 
+def test_a_deck_is_read_slide_by_slide_and_a_source_names_its_slide_as_a_page(page, tmp_path):
+    """suveryn-tracker#271: a PowerPoint deck, each slide numbered as a page. A fictional deck."""
+    import pptx
+
+    deck = pptx.Presentation()
+    first = deck.slides.add_slide(deck.slide_layouts[1])
+    first.shapes.title.text, first.placeholders[1].text = "Agenda", "Welkom en voorstelling"
+    second = deck.slides.add_slide(deck.slide_layouts[1])
+    second.shapes.title.text = "Financiering"
+    second.placeholders[1].text = "De lening van de koper bedraagt EUR 250.000,00 over twintig jaar."
+    path = tmp_path / "Toelichting.pptx"
+    deck.save(path)
+    sign_in(page)
+    upload(page, path)
+    text = ask(page, "Hoeveel bedraagt de lening van de koper?")
+    assert "250.000,00" in text
+    assert page.get_by_role("button", name=re.compile(r"Source \d+: Toelichting\.pptx, page 2")).count() >= 1
+
+
 def test_thorough_without_an_answer_is_asked_again(page, deed):
     sign_in(page)
     upload(page, deed)

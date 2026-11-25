@@ -14069,7 +14069,7 @@
     ]
    },
    "post": {
-    "description": "Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,\nWord (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML or HTML file, recognised by its\nextension and first bytes. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is\n``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests.\n\nA .zip archive adds each of those files inside it as a document of its own: the answer is then\n``{\"archive\": name, \"jobs\": [job, …], \"skipped\": [{\"name\", \"failure\"}, …]}``, a job per document and\nthe entries left out, each with why as a message of the registry (``failure``: another kind of file, an\narchive or email inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty.\nAn email (.eml) answers the same way: a job for the message itself (sender, recipients, date, subject, body)\nand one per attachment of those kinds. Either is one upload against the queue limits, however many documents\nit holds.",
+    "description": "Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,\nWord (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument (.odt, .ods, .odp), Markdown (.md), CSV, TSV, text\n(.txt), JSON, XML or HTML file, recognised by its extension and first bytes. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is\n``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests.\n\nA .zip archive adds each of those files inside it as a document of its own: the answer is then\n``{\"archive\": name, \"jobs\": [job, …], \"skipped\": [{\"name\", \"failure\"}, …]}``, a job per document and\nthe entries left out, each with why as a message of the registry (``failure``: another kind of file, an\narchive or email inside it, encrypted, too large, empty, not what its extension says, or damaged). With nothing readable in it, ``jobs`` is empty.\nAn email (.eml) answers the same way: a job for the message itself (sender, recipients, date, subject, body)\nand one per attachment of those kinds. Either is one upload against the queue limits, however many documents\nit holds.",
     "operationId": "create_upload",
     "parameters": [
      {
@@ -14827,7 +14827,7 @@
   },
   "/v1/documents/{document_id}/original": {
    "get": {
-    "description": "The file a document was read from, as uploaded (board G11, \"Open document at p. 3\"): for whoever may read\nits passages, and noted in the case's access log. A PDF opens in the browser (the page follows as\n``#page=3``), text files (Markdown, CSV, TSV, text, JSON, XML, HTML) show as plain text, never as a page;\nWord, Excel and an email are downloaded. Text sūveryn stored\nitself (a saved answer, a playbook's summary) has none (404).",
+    "description": "The file a document was read from, as uploaded (board G11, \"Open document at p. 3\"): for whoever may read\nits passages, and noted in the case's access log. A PDF opens in the browser (the page follows as\n``#page=3``), text files (Markdown, CSV, TSV, text, JSON, XML, HTML) show as plain text, never as a page;\nWord, Excel, PowerPoint, OpenDocument and an email are downloaded. Text sūveryn stored\nitself (a saved answer, a playbook's summary) has none (404).",
     "operationId": "get_document_original",
     "parameters": [
      {
@@ -14866,6 +14866,30 @@
         }
        },
        "application/pdf": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.oasis.opendocument.presentation": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.oasis.opendocument.spreadsheet": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.oasis.opendocument.text": {
+        "schema": {
+         "format": "binary",
+         "type": "string"
+        }
+       },
+       "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
         "schema": {
          "format": "binary",
          "type": "string"

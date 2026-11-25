@@ -236,7 +236,7 @@ class Rag:
         and complete, so the PDF checks (page coverage, recovery, encoding) don't apply. Text addressed
         to an AI is flagged as in a PDF, and the mark is looked for in the body and outside it."""
         t = time.perf_counter()
-        chunks = [Chunk(i, p.text, "\n".join([*p.headings, p.text]), None, None, list(p.headings), place=p.place)
+        chunks = [Chunk(i, p.text, "\n".join([*p.headings, p.text]), p.page, p.page, list(p.headings), place=p.place)
                   for i, p in enumerate(ex.passages)]
         if not chunks:
             raise Unreadable("the file has no text", "document.no_text")
@@ -246,16 +246,16 @@ class Rag:
         t = time.perf_counter()
         noticed = None
         if existing:
-            doc_id = self.store.replace_document(existing, name, 0, 0, chunks, vectors, warnings, original=original)
+            doc_id = self.store.replace_document(existing, name, ex.pages, 0, chunks, vectors, warnings, original=original)
         else:
             noticed = find_mark([*ex.furniture, *(c.text for c in chunks)])
-            doc_id = self.store.add_document(name, digest, 0, 0, chunks, vectors, warnings, owner, case_id,
+            doc_id = self.store.add_document(name, digest, ex.pages, 0, chunks, vectors, warnings, owner, case_id,
                                              provenance={"noticed": noticed} if noticed else None, original=original)
         if kinds:
             audit("instruction_like_document", user=owner, document=str(doc_id), pages=[], kinds=kinds)
         ex.timings["store"] = time.perf_counter() - t
         status, stored_warnings = self.store.document_status(doc_id)
-        return IngestResult(doc_id, name, 0, 0, len(chunks), False, ex.timings, status, stored_warnings, 0, noticed)
+        return IngestResult(doc_id, name, ex.pages, 0, len(chunks), False, ex.timings, status, stored_warnings, 0, noticed)
 
     def store_text(self, filename: str, text: str, owner: str | None, case_id: uuid.UUID | None,
                    origin: str, provenance: dict | None = None, content: dict | None = None) -> uuid.UUID:

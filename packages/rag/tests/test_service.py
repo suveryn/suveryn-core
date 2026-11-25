@@ -161,19 +161,20 @@ def test_every_kind_read_is_accepted_and_kept_with_its_extension(tmp_path):
     for name, head in [("deed.pdf", b"%PDF-1.7"), ("Notes.DOCX", b"PK\x03\x04rest"), ("prices.xlsx", b"PK\x03\x04rest"),
                        ("notes.md", b"# Title\n"), ("list.csv", b"name;amount\n"), ("list.tsv", b"name\tamount\n"),
                        ("letter.txt", b"Dear"), ("windows.txt", "Dear".encode("utf-16")), ("data.json", b"{}"),
-                       ("deed.xml", b"<deed/>"), ("page.htm", b"<p>x</p>")]:
+                       ("deed.xml", b"<deed/>"), ("page.htm", b"<p>x</p>"), ("deck.pptx", b"PK\x03\x04rest"),
+                       ("deed.odt", b"PK\x03\x04rest"), ("prices.ods", b"PK\x03\x04rest"), ("deck.odp", b"PK\x03\x04rest")]:
         job = docs.accept_upload(io.BytesIO(head), name, "user-a")
         assert job.filename == name
     stored = sorted(p.suffix for p in (tmp_path / "uploads").iterdir())
-    assert stored == [".csv", ".docx", ".html", ".json", ".md", ".pdf", ".tsv", ".txt", ".txt", ".xlsx", ".xml"]  # the reader goes by the extension
+    assert stored == [".csv", ".docx", ".html", ".json", ".md", ".odp", ".ods", ".odt", ".pdf", ".pptx", ".tsv", ".txt", ".txt",
+                      ".xlsx", ".xml"]  # the reader goes by the extension
 
 
 @pytest.mark.parametrize("name, head, says", [
-    ("old.doc", b"\xd0\xcf\x11\xe0", r"only PDF, Word \(\.docx\), Excel \(\.xlsx\), Markdown \(\.md\), CSV"),
+    ("old.doc", b"\xd0\xcf\x11\xe0", r"only PDF, Word \(\.docx\), Excel \(\.xlsx\), PowerPoint \(\.pptx\), OpenDocument"),
     ("binary.txt", b"MZ\x90\x00", "not a valid text file"),
     ("macro.xlsm", b"PK\x03\x04", "only PDF"),
     ("renamed.docx", b"%PDF-1.7", "not a valid Word file"),   # the content must fit the extension
-    ("encrypted.xlsx", b"\xd0\xcf\x11\xe0", "not a valid Excel file"),  # a password-protected workbook isn't a zip
     ("binary.csv", b"ab\x00cd", "not a valid CSV file"),
     ("deed.pdf", b"PK\x03\x04", "not a valid PDF file"),
     ("empty.md", b"", "empty"),

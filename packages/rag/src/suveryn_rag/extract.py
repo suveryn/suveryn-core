@@ -73,8 +73,8 @@ class Extraction:
     # Pages with text that Docling still couldn't lay out (after the CPU retry, see ``Extractor``): their
     # text is recovered from the text layer, without structure, and the document needs review.
     layout_failed_pages: list[int] = field(default_factory=list)
-    # Any other kind of file (``formats``): its passages, already placed (section or
-    # cell range), and the text outside its body; ``document`` is None and there are no pages.
+    # Any other kind of file (``formats``): its passages, already placed (section, cell range, path, or a slide
+    # numbered as a page), and the text outside its body; ``document`` is None, and ``pages`` a deck's slides.
     passages: list | None = None
     furniture: list[str] = field(default_factory=list)
 
@@ -236,7 +236,7 @@ class Extractor:
             watch.report(Progress("read"))
             t0 = time.perf_counter()
             reading = formats.read(pdf, kind, self.settings.chunk_max_tokens * 3)
-            return Extraction(document=None, pages=0, ocr_pages=0, mixed_pages=0, passages=reading.passages,
+            return Extraction(document=None, pages=reading.pages, ocr_pages=0, mixed_pages=0, passages=reading.passages,
                               furniture=reading.furniture, timings={"read": time.perf_counter() - t0})
         import ocrmypdf
 

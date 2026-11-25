@@ -7645,8 +7645,8 @@ export const getCreateUploadUrl = (params?: CreateUploadParams,) => {
 
 /**
  * Add a document to the caller's personal space, or to the case ``case`` (a contributor's right): a PDF,
- * Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML or HTML file, recognised by its
- * extension and first bytes. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is
+ * Word (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument (.odt, .ods, .odp), Markdown (.md), CSV, TSV, text
+ * (.txt), JSON, XML or HTML file, recognised by its extension and first bytes. Returns a job immediately; poll ``GET /v1/documents/jobs/{id}`` until it is
  * ``ready`` (or ``needs_review``), then use its ``document_id`` in chat requests.
  *
  * A .zip archive adds each of those files inside it as a document of its own: the answer is then
@@ -8137,6 +8137,26 @@ export type getDocumentOriginalResponse200ApplicationPdf = {
   status: 200
 }
 
+export type getDocumentOriginalResponse200ApplicationVndOasisOpendocumentPresentation = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationVndOasisOpendocumentSpreadsheet = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationVndOasisOpendocumentText = {
+  data: Blob
+  status: 200
+}
+
+export type getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentPresentationmlPresentation = {
+  data: Blob
+  status: 200
+}
+
 export type getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet = {
   data: Blob
   status: 200
@@ -8187,7 +8207,7 @@ export type getDocumentOriginalResponse503 = {
   status: 503
 }
 
-export type getDocumentOriginalResponseSuccess = (getDocumentOriginalResponse200ApplicationOctetStream | getDocumentOriginalResponse200ApplicationPdf | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentWordprocessingmlDocument | getDocumentOriginalResponse200MessageRfc822 | getDocumentOriginalResponse200TextPlain) & {
+export type getDocumentOriginalResponseSuccess = (getDocumentOriginalResponse200ApplicationOctetStream | getDocumentOriginalResponse200ApplicationPdf | getDocumentOriginalResponse200ApplicationVndOasisOpendocumentPresentation | getDocumentOriginalResponse200ApplicationVndOasisOpendocumentSpreadsheet | getDocumentOriginalResponse200ApplicationVndOasisOpendocumentText | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentPresentationmlPresentation | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentSpreadsheetmlSheet | getDocumentOriginalResponse200ApplicationVndOpenxmlformatsOfficedocumentWordprocessingmlDocument | getDocumentOriginalResponse200MessageRfc822 | getDocumentOriginalResponse200TextPlain) & {
   headers: Headers;
 };
 export type getDocumentOriginalResponseError = (getDocumentOriginalResponse401 | getDocumentOriginalResponse403 | getDocumentOriginalResponse404 | getDocumentOriginalResponse422 | getDocumentOriginalResponse500 | getDocumentOriginalResponse503) & {
@@ -8216,7 +8236,7 @@ export const getGetDocumentOriginalUrl = (documentId: string,
  * The file a document was read from, as uploaded (board G11, "Open document at p. 3"): for whoever may read
  * its passages, and noted in the case's access log. A PDF opens in the browser (the page follows as
  * ``#page=3``), text files (Markdown, CSV, TSV, text, JSON, XML, HTML) show as plain text, never as a page;
- * Word, Excel and an email are downloaded. Text sūveryn stored
+ * Word, Excel, PowerPoint, OpenDocument and an email are downloaded. Text sūveryn stored
  * itself (a saved answer, a playbook's summary) has none (404).
  * @summary Get Document Original
  */

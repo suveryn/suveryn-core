@@ -1,5 +1,5 @@
-"""Reading uploads other than PDFs: Word (.docx), Excel (.xlsx), Markdown (.md), CSV and TSV, plain text
-(.txt), JSON, XML, HTML and an email's message (.eml).
+"""Reading uploads other than PDFs: Word (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument (.odt, .ods,
+.odp), Markdown (.md), CSV and TSV, plain text (.txt), JSON, XML, HTML and an email's message (.eml).
 
 PDFs go through OCR and Docling's layout model (``extract``). These formats carry their text and
 structure in the file itself, so they are read directly, in the same sandboxed reader process
@@ -8,11 +8,11 @@ any PDF.
 
 What comes out is a list of passages, each with where it sits:
 
-- **Word, Markdown and HTML**: the section, as the chain of headings above the passage ("Article 2 ›
+- **Word, OpenDocument text, Markdown and HTML**: the section, as the chain of headings above the passage ("Article 2 ›
   The price"). A Word heading is a paragraph in a Heading or Title style, or one with an outline
   level; an HTML heading is h1 to h6. Tables are kept as rows of cells; a long table is split by rows,
   its first row repeated.
-- **Excel, CSV and TSV**: the cells, as a range in Excel's own notation ("Prices!A2:D31", "A2:D31" in a
+- **Excel, OpenDocument spreadsheets, CSV and TSV**: the cells, as a range in Excel's own notation ("Prices!A2:D31", "A2:D31" in a
   CSV): language-neutral, and what a spreadsheet user types to find them. Values are read as
   last calculated (never formulas). The first non-empty row of a sheet is repeated at the top
   of every later passage of that sheet, so each passage says what its columns are.
@@ -20,13 +20,16 @@ What comes out is a list of passages, each with where it sits:
   Pointer (RFC 6901, "/parties/0/name") or an XPath of local names ("/deed/party[2]/name", "/deed/@id";
   namespaces left out). A passage's place is the deepest path its lines share.
 - **Plain text**: by paragraph (a blank line between them).
+- **A deck (PowerPoint, OpenDocument presentation)**: slide by slide, under the slide's title: its text, then
+  its tables by rows, then its speaker notes; each slide numbered as a page (``Passage.page``): its number in
+  the deck, hidden slides counted, so a source says "p. 3" for the third slide.
 - **An email**: who sent it to whom, when and its subject (RFC 5322's field names), then its text: the body
   (the plain text, or else the HTML, read as HTML is) and any other text part shown with it. Its
   attachments are documents of their own, taken out by the document service (``service``).
 
 Nothing is left out of the body: a heading with no text under it becomes a passage of its own.
-Text outside the body (Word headers and footers, Markdown and HTML comments, an HTML page's title) is
-returned separately as ``furniture``: it is checked for sūveryn's export mark (``marks``) but not stored as
+Text outside the body (Word and OpenDocument headers, footers and comments, a slide's footer and number,
+Markdown and HTML comments, an HTML page's title) is returned separately as ``furniture``: it is checked for sūveryn's export mark (``marks``) but not stored as
 passages, as a PDF's repeating headers and footers aren't either. Tracked insertions are read, deletions
 not: the document as it now reads.
 
@@ -45,24 +48,29 @@ import re
 import zipfile
 from email.message import EmailMessage
 from html.parser import HTMLParser
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time
 from pathlib import Path
 
 from .reading import Unreadable
 
 # File types by extension. The upload check (``looks_like``) and the reader confirm the content.
-KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".md": "md", ".markdown": "md", ".csv": "csv", ".tsv": "tsv",
+KINDS = {".pdf": "pdf", ".docx": "docx", ".xlsx": "xlsx", ".pptx": "pptx", ".odt": "odt", ".ods": "ods", ".odp": "odp", ".md": "md", ".markdown": "md", ".csv": "csv", ".tsv": "tsv",
          ".txt": "txt", ".json": "json", ".xml": "xml", ".html": "html", ".htm": "html", ".eml": "eml"}
-SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "md": ".md", "csv": ".csv", "tsv": ".tsv", "txt": ".txt",
+SUFFIX = {"pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "pptx": ".pptx", "odt": ".odt", "ods": ".ods", "odp": ".odp", "md": ".md", "csv": ".csv", "tsv": ".tsv", "txt": ".txt",
           "json": ".json", "xml": ".xml", "html": ".html", "eml": ".eml"}
 TEXT_KINDS = {"md", "csv", "tsv", "txt", "json", "xml", "html", "eml"}
+# An OpenDocument package's type, as its own ``mimetype`` entry says it.
+ODF_TYPES = {"odt": "application/vnd.oasis.opendocument.text", "ods": "application/vnd.oasis.opendocument.spreadsheet",
+             "odp": "application/vnd.oasis.opendocument.presentation"}
 # The type the gateway serves a kept file as (board G11, "Open document"): a PDF opens in the browser, Word and
 # Excel are downloaded, text files are shown as plain text (an HTML page too: never as HTML, so nothing in it
 # runs; in the character set it was read in: ``content_type``), an email is downloaded for the mail program.
 CONTENT_TYPE = {"pdf": "application/pdf",
                 "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                **ODF_TYPES,
                 "eml": "message/rfc822",
                 **{kind: "text/plain; charset=utf-8" for kind in ("md", "csv", "tsv", "txt", "json", "xml", "html")}}
 
@@ -76,11 +84,13 @@ MAX_DEPTH = 100                          # JSON or XML nested deeper: no documen
 
 @dataclass(frozen=True)
 class Passage:
-    """A stored passage: its text, the headings above it, and for a spreadsheet the cell range."""
+    """A stored passage: its text, the headings above it, for a spreadsheet the cell range (or a path), and for a
+    deck the slide, numbered as a page."""
 
     text: str
     headings: list[str] = field(default_factory=list)
     place: str | None = None
+    page: int | None = None
 
 
 @dataclass
@@ -89,6 +99,7 @@ class Reading:
 
     passages: list[Passage]
     furniture: list[str] = field(default_factory=list)
+    pages: int = 0  # a deck's slides; 0 for a file without pages
 
 
 def kind_of(filename: str) -> str | None:
@@ -96,15 +107,19 @@ def kind_of(filename: str) -> str | None:
     return KINDS.get(Path(filename).suffix.lower())
 
 
+OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"  # a compound file: an old Office file, or an encrypted new one
 BOMS = (codecs.BOM_UTF8, codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)
 
 
 def looks_like(kind: str, head: bytes) -> bool:
-    """Whether the file's first bytes fit its kind: a PDF header, a zip for Office files, and for text
+    """Whether the file's first bytes fit its kind: a PDF header, a zip for Office files (or the compound file a
+    password-protected one is, which the reader refuses as such), and for text
     files no NUL byte (a binary file renamed to .txt or .csv) unless it starts with a UTF-16 byte-order mark."""
     if kind == "pdf":
         return head.startswith(b"%PDF-")
-    if kind in ("docx", "xlsx"):
+    if kind in ("docx", "xlsx", "pptx"):  # a zip, or a password-protected one (the reader says so)
+        return head.startswith((b"PK\x03\x04", OLE))
+    if kind in ("odt", "ods", "odp"):
         return head.startswith(b"PK\x03\x04")
     return head.startswith(BOMS[1:]) or b"\x00" not in head
 
@@ -112,7 +127,8 @@ def looks_like(kind: str, head: bytes) -> bool:
 def read(path: Path, kind: str, limit: int) -> Reading:
     """Read one non-PDF file of ``kind``; passages of at most ``limit`` characters where they can be split.
     Raises ``Unreadable`` with a code when the file can't be read."""
-    reader = {"docx": read_docx, "xlsx": read_xlsx, "md": read_markdown, "csv": read_csv, "tsv": read_tsv,
+    reader = {"docx": read_docx, "xlsx": read_xlsx, "pptx": read_pptx, "odt": read_odt, "ods": read_ods, "odp": read_odp,
+              "md": read_markdown, "csv": read_csv, "tsv": read_tsv,
               "txt": read_text, "json": read_json, "xml": read_xml, "html": read_html, "eml": read_email}.get(kind)
     if reader is None:
         raise Unreadable(f"no reader for {kind} files", "document.unsupported")
@@ -205,6 +221,7 @@ class Outline:
     def __init__(self) -> None:
         self._stack: list[list] = []  # [level, heading, has something under it]
         self._items: list[tuple[str, list[str], object]] = []  # ("text", headings, text) or ("table", headings, rows)
+        self._chars = 0  # counted as it is read: a small file that unfolds into too much text stops early
 
     def headings(self) -> list[str]:
         return [h for _, h, _ in self._stack]
@@ -225,6 +242,9 @@ class Outline:
         """Text (a string) or a table (rows of cells) under the current headings."""
         for entry in self._stack:
             entry[2] = True
+        self._chars += len(content) if kind == "text" else sum(len(c) + 3 for row in content for c in row)
+        if self._chars > MAX_CHARS:
+            raise Unreadable("the document has too much text to be read", "document.too_large")
         self._items.append((kind, self.headings(), content))
 
     def passages(self, limit: int) -> list[Passage]:
@@ -284,7 +304,22 @@ HEADING_STYLE = re.compile(r"^heading\s*(\d)$", re.IGNORECASE)
 
 
 def check_zip(path: Path, member: str, what: str) -> None:
-    """An Office file is a zip; refuse one that isn't, lacks its main part, or unpacks to too much."""
+    """An Office file is a zip; refuse one that isn't (one protected with a password as such: Office encrypts it
+    into a compound file with an EncryptionInfo stream, MS-OFFCRYPTO, read with olefile), lacks its main part, or
+    unpacks to too much."""
+    with open(path, "rb") as f:
+        head = f.read(8)
+    if head == OLE:
+        import olefile
+
+        try:
+            with olefile.OleFileIO(str(path)) as ole:
+                protected = ole.exists("EncryptionInfo")
+        except Exception:  # noqa: BLE001 - olefile raises many kinds for a broken compound file
+            protected = False
+        if protected:
+            raise Unreadable("the file is protected with a password", "document.password_protected")
+        raise Unreadable(f"the file is not a valid {what} file", "document.damaged")
     try:
         with zipfile.ZipFile(path) as z:
             infos = z.infolist()
@@ -419,6 +454,394 @@ def read_xlsx(path: Path, limit: int) -> Reading:
     finally:
         workbook.close()
     return Reading(passages)
+
+
+# ---------------------------------------------------------------------- PowerPoint and slides
+def _slide_passages(number: int, title: str, texts: list[str], tables: list[list[list[str]]], limit: int) -> list[Passage]:
+    """One slide's passages, under its title, each numbered as the slide's page; a slide with only a title is its
+    title."""
+    heads = [title] if title else []
+    passages = pack([(heads, t) for t in texts if t.strip()], limit)
+    for rows in tables:
+        passages += rows_in_passages(list(enumerate(rows, 1)), limit, heads)
+    if not passages and title:
+        passages = [Passage(title)]
+    return [replace(p, page=number) for p in passages]
+
+
+def read_pptx(path: Path, limit: int) -> Reading:
+    """A PowerPoint deck slide by slide: its title as the heading, the text of its shapes (in groups too), its
+    tables by rows, and its speaker notes; each slide numbered as a page, its number in the deck. Hidden slides
+    too (their text is in the file, and they keep their number; a PDF export leaves them out). The footer, date and
+    slide-number placeholders are furniture. Charts, SmartArt and embedded objects are not read, as in Word."""
+    import pptx
+    from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
+
+    check_zip(path, "ppt/presentation.xml", "PowerPoint")
+    try:
+        deck = pptx.Presentation(str(path))
+    except Exception:  # noqa: BLE001 - python-pptx raises many kinds for a broken file
+        raise Unreadable("the file is not a valid PowerPoint file", "document.damaged") from None
+    furniture_kinds = {PP_PLACEHOLDER.FOOTER, PP_PLACEHOLDER.DATE, PP_PLACEHOLDER.SLIDE_NUMBER}
+    passages: list[Passage] = []
+    furniture: list[str] = []
+    slides = 0
+    for number, slide in enumerate(deck.slides, 1):
+        slides = number
+        title_shape = slide.shapes.title
+        title = " ".join(title_shape.text_frame.text.split()) if title_shape is not None and title_shape.has_text_frame else ""
+        texts: list[str] = []
+        tables: list[list[list[str]]] = []
+        stack = list(reversed(list(slide.shapes)))
+        while stack:  # in the slide's order, groups opened in place, without recursion
+            shape = stack.pop()
+            try:
+                group = shape.shape_type == MSO_SHAPE_TYPE.GROUP
+            except NotImplementedError:  # a shape python-pptx has no type for (no geometry): read as any other
+                group = False
+            if group:
+                stack += reversed(list(shape.shapes))
+                continue
+            if title_shape is not None and shape.shape_id == title_shape.shape_id:
+                continue
+            if getattr(shape, "has_table", False) and shape.has_table:
+                rows = [trimmed([" ".join(c.text.split()) for c in row.cells]) for row in shape.table.rows]
+                if rows := [r for r in rows if r]:
+                    tables.append(rows)
+            elif getattr(shape, "has_text_frame", False) and shape.has_text_frame:
+                text = "\n".join(t for t in (par.text.replace("\v", "\n").strip() for par in shape.text_frame.paragraphs) if t)
+                if not text:
+                    continue
+                if shape.is_placeholder and shape.placeholder_format.type in furniture_kinds:
+                    furniture.append(" ".join(text.split()))
+                else:
+                    texts.append(text)
+        if slide.has_notes_slide and (notes := slide.notes_slide.notes_text_frame) is not None and notes.text.strip():
+            texts.append(notes.text.strip())
+        passages += _slide_passages(number, title, texts, tables, limit)
+    return Reading(passages, list(dict.fromkeys(furniture)), pages=slides)
+
+
+# ---------------------------------------------------------------------- OpenDocument (.odt, .ods, .odp)
+ODF = {name: "{urn:oasis:names:tc:opendocument:xmlns:%s}" % urn for name, urn in [
+    ("office", "office:1.0"), ("text", "text:1.0"), ("table", "table:1.0"), ("draw", "drawing:1.0"),
+    ("presentation", "presentation:1.0"), ("style", "style:1.0"), ("manifest", "manifest:1.0")]}
+O, T, TB, D, P, S = (ODF[k] for k in ("office", "text", "table", "draw", "presentation", "style"))
+ODF_NAMES = {"odt": "OpenDocument text", "ods": "OpenDocument spreadsheet", "odp": "OpenDocument presentation"}
+
+
+def _odf_part(path: Path, kind: str, member: str):
+    """A part of an OpenDocument file (``content.xml``, ``styles.xml``) as XML, after checking the package: a zip
+    of the right type (its ``mimetype``), not encrypted, not too large unpacked. None if an optional part is
+    missing. Parsed with defusedxml."""
+    from defusedxml import DefusedXmlException
+    from defusedxml.ElementTree import ParseError, fromstring
+
+    what = ODF_NAMES[kind]
+    check_zip(path, "content.xml", what)
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        if "mimetype" not in names or z.read("mimetype").strip() != ODF_TYPES[kind].encode():
+            raise Unreadable(f"the file is not a valid {what} file", "document.damaged")
+        if "META-INF/manifest.xml" in names and b"encryption-data" in z.read("META-INF/manifest.xml"):
+            raise Unreadable("the file is protected with a password", "document.password_protected")
+        if member not in names:
+            return None
+        data = z.read(member)
+    try:
+        return fromstring(data)
+    except DefusedXmlException:
+        raise Unreadable(f"the {what} file declares entities, which aren't read", "document.unreadable") from None
+    except (ParseError, RecursionError):
+        raise Unreadable(f"the file is not a valid {what} file", "document.damaged") from None
+
+
+OOO = "{http://openoffice.org/2009/office}"  # LibreOffice's own annotations on a slide
+ANNOTATIONS = (f"{O}annotation", f"{OOO}annotation")
+MAX_COLUMNS, MAX_ROWS = 16_384, 1_048_576  # a sheet's size, as Excel's and LibreOffice's
+
+
+def _int(value: str | None, default: int) -> int:
+    """A whole number from an attribute; ``default`` for one that isn't (the file is read, not refused, for it)."""
+    try:
+        return int(value) if value is not None else default
+    except ValueError:
+        return default
+
+
+def _odf_text(element, notes: list[tuple[str, str]] | None = None, depth: int = 0) -> str:
+    """The text of an OpenDocument paragraph or heading as it reads: spaces (text:s), tabs and line breaks kept;
+    a footnote's or a comment's text goes to ``notes`` as ("note", text) or ("comment", text), never into the
+    sentence it is anchored in. A shape anchored in it (a text box, a drawing) is read apart (``_anchored``)."""
+    if depth > MAX_DEPTH:
+        raise Unreadable(f"the file is nested more than {MAX_DEPTH} levels deep", "document.too_large")
+    parts = [element.text or ""]
+    for child in element:
+        tag = child.tag
+        if tag == f"{T}s":
+            parts.append(" " * min(max(_int(child.get(f"{T}c"), 1), 1), 100))
+        elif tag == f"{T}tab":
+            parts.append("\t")
+        elif tag == f"{T}line-break":
+            parts.append("\n")
+        elif tag == f"{T}note" or tag in ANNOTATIONS:
+            if notes is not None:
+                body = child.find(f"{T}note-body") if tag == f"{T}note" else child
+                if body is not None and (note := " ".join(_odf_text(p, None, depth + 1) for p in body.iter(f"{T}p")).strip()):
+                    notes.append(("note" if tag == f"{T}note" else "comment", note))
+        elif tag.startswith(D) or tag in (f"{O}annotation-end", f"{T}bookmark", f"{T}bookmark-start", f"{T}bookmark-end"):
+            pass
+        else:
+            parts.append(_odf_text(child, notes, depth + 1))
+        parts.append(child.tail or "")
+    return "".join(parts)
+
+
+def _anchored(element) -> list:
+    """The shapes anchored in a paragraph (a text box's frame, a drawing with text, a group), each once: the
+    outermost ones only; what is inside a shape is read with it."""
+    found, stack = [], list(reversed(list(element)))
+    while stack:
+        el = stack.pop()
+        if el.tag.startswith(D):
+            found.append(el)
+        elif el.tag != f"{T}note" and el.tag not in ANNOTATIONS:
+            stack += reversed(list(el))
+    return found
+
+
+def _odf_paragraphs(element, notes: list[tuple[str, str]], tables: bool = False, depth: int = 0) -> list[str]:
+    """The text of every paragraph and heading in ``element`` (a cell, a slide's shape), in order; footnotes and
+    comments to ``notes``, never into the sentence. With ``tables`` a table inside is read too, paragraph by
+    paragraph (a table in a cell); without, it is left to be read by rows."""
+    if depth > MAX_DEPTH:
+        raise Unreadable(f"the file is nested more than {MAX_DEPTH} levels deep", "document.too_large")
+    out = []
+    for el in element:
+        if el.tag in (f"{T}p", f"{T}h"):
+            if text := _odf_text(el, notes).strip():
+                out.append(text)
+            for shape in _anchored(el):
+                out += _odf_paragraphs(shape, notes, tables, depth + 1)
+        elif el.tag in ANNOTATIONS:
+            if text := " ".join(_odf_paragraphs(el, [], True, depth + 1)).strip():
+                notes.append(("comment", text))
+        elif tables or el.tag != f"{TB}table":
+            out += _odf_paragraphs(el, notes, tables, depth + 1)
+    return out
+
+
+def _odf_cell(cell, values: bool, notes: list[tuple[str, str]]) -> str:
+    """A table cell's text: in a spreadsheet its value as last calculated (a number, a date, true or false),
+    else the text it shows, a table inside it and its footnotes included. A comment on it goes to ``notes``."""
+    own: list[tuple[str, str]] = []
+    shown = " ".join(" ".join([*_odf_paragraphs(cell, own, tables=True), *(n for k, n in own if k == "note")]).split())
+    notes += [(k, n) for k, n in own if k == "comment"]
+    if values:
+        kind = cell.get(f"{O}value-type")
+        try:
+            if kind in ("float", "percentage", "currency") and cell.get(f"{O}value") is not None:
+                return cell_text(float(cell.get(f"{O}value")))
+            if kind == "date" and cell.get(f"{O}date-value"):
+                return cell_text(datetime.fromisoformat(cell.get(f"{O}date-value")))
+            if kind == "boolean" and cell.get(f"{O}boolean-value") is not None:
+                return cell_text(cell.get(f"{O}boolean-value") == "true")
+        except ValueError:
+            pass  # a value that isn't what its type says: the text shown
+    return shown
+
+
+class Budget:
+    """What one file may unfold into, counted across all its tables: filled cells and characters. OpenDocument
+    writes a run of equal rows or cells once with a count, so a few bytes can stand for millions."""
+
+    def __init__(self) -> None:
+        self.cells = self.chars = 0
+
+    def spend(self, cells: int, chars: int) -> None:
+        self.cells += cells
+        self.chars += chars
+        if self.cells > MAX_CELLS:
+            raise Unreadable(f"the file has more than {MAX_CELLS:,} filled cells".replace(",", " "), "document.too_large")
+        if self.chars > MAX_CHARS:
+            raise Unreadable("the document has too much text to be read", "document.too_large")
+
+
+def _odf_rows(table, values: bool, budget: Budget, notes: list[tuple[str, str]]) -> list[tuple[int, list[str]]]:
+    """A table's non-empty rows, numbered as a spreadsheet numbers them. Repeated rows and cells (how
+    OpenDocument writes a run of equal ones, often a million empty rows) are counted, and only filled ones written
+    out, within the sheet's size and ``budget``. A cell covered by a merged one is an empty cell, so the columns
+    stay where they are, as in Excel."""
+    rows: list[tuple[int, list[str]]] = []
+    number = 0
+    stack = list(reversed(list(table)))
+    while stack and number < MAX_ROWS:  # rows also sit in header rows, row groups and rows elements
+        el = stack.pop()
+        if el.tag in (f"{TB}table-header-rows", f"{TB}table-row-group", f"{TB}table-rows"):
+            stack += reversed(list(el))
+            continue
+        if el.tag != f"{TB}table-row":
+            continue
+        cells: list[str] = []
+        column, empty_run = 0, 0
+        for cell in el:
+            if cell.tag not in (f"{TB}table-cell", f"{TB}covered-table-cell"):
+                continue
+            repeat = min(max(_int(cell.get(f"{TB}number-columns-repeated"), 1), 1), MAX_COLUMNS - column)
+            if repeat <= 0:
+                break
+            column += repeat
+            text = _odf_cell(cell, values, notes) if cell.tag == f"{TB}table-cell" else ""
+            if not text:
+                empty_run += repeat
+                continue
+            cells += [""] * empty_run + [text] * repeat
+            empty_run = 0
+        repeat = min(max(_int(el.get(f"{TB}number-rows-repeated"), 1), 1), MAX_ROWS - number)
+        if cells:
+            filled = sum(1 for c in cells if c)
+            budget.spend(filled * repeat, sum(len(c) + 3 for c in cells) * repeat)
+            rows += [(number + i + 1, cells) for i in range(repeat)]
+        number += repeat
+    return rows
+
+
+def _outer_tables(element) -> list:
+    """The outermost tables in ``element``; a table inside one is read with its cell (``_odf_cell``)."""
+    found, stack = [], [element]
+    while stack:
+        el = stack.pop()
+        if el.tag == f"{TB}table":
+            found.append(el)
+        else:
+            stack += reversed(list(el))
+    return found
+
+
+def _title_styles(content) -> set[str]:
+    """The paragraph styles that are the Title style or derive from it (LibreOffice writes "P1", parent "Title")."""
+    names = {"Title"}
+    for style in content.iter(f"{S}style"):
+        if style.get(f"{S}parent-style-name") in names or style.get(f"{S}name") in names:
+            names.add(style.get(f"{S}name", ""))
+    return names
+
+
+def _odf_body(container, outline: Outline, outside: list[str], budget: Budget, titles: set[str], depth: int = 0) -> None:
+    """An OpenDocument text body into ``outline``: headings (text:h by its outline level, a Title paragraph above
+    them), paragraphs, lists, sections, tables by rows, the shapes anchored in a paragraph after it; a footnote
+    after its paragraph, a comment to ``outside``. Tracked deletions (text:tracked-changes) are not read: the
+    document as it now reads."""
+    if depth > MAX_DEPTH:
+        raise Unreadable(f"the file is nested more than {MAX_DEPTH} levels deep", "document.too_large")
+    for el in container:
+        tag = el.tag
+        if tag in (f"{T}p", f"{T}h"):
+            notes: list[tuple[str, str]] = []
+            text = _odf_text(el, notes).strip()
+            if text and tag == f"{T}h":
+                outline.heading(min(max(_int(el.get(f"{T}outline-level"), 1), 1), 10), " ".join(text.split()))
+            elif text and el.get(f"{T}style-name") in titles:
+                outline.heading(0, " ".join(text.split()))
+            elif text:
+                outline.add("text", text)
+            for kind, note in notes:  # a footnote is the document's text, after its paragraph; a comment isn't
+                if kind == "note":
+                    outline.add("text", note)
+                else:
+                    outside.append(note)
+            for shape in _anchored(el):
+                _odf_body([shape], outline, outside, budget, titles, depth + 1)
+        elif tag == f"{TB}table":
+            notes = []
+            if rows := [r for _, r in _odf_rows(el, False, budget, notes)]:
+                outline.add("table", [trimmed(r) for r in rows])
+            outside += [n for _, n in notes]
+        elif tag in ANNOTATIONS:
+            if text := " ".join(_odf_paragraphs(el, [])).strip():
+                outside.append(text)
+        elif tag == f"{T}tracked-changes" or tag == f"{O}forms" or tag.endswith("-decls"):
+            continue
+        else:  # lists, list items, sections, indexes, shapes and their text boxes: what holds paragraphs
+            _odf_body(el, outline, outside, budget, titles, depth + 1)
+
+
+def read_odt(path: Path, limit: int) -> Reading:
+    """An OpenDocument text by section, as Word is read: headings (text:h, and the Title) as the chain above each
+    passage, tables by rows; headers and footers (styles.xml) and comments only checked for the export mark."""
+    content = _odf_part(path, "odt", "content.xml")
+    body = content.find(f"{O}body/{O}text")
+    if body is None:
+        raise Unreadable(f"the file is not a valid {ODF_NAMES['odt']} file", "document.damaged")
+    outline, outside = Outline(), []
+    _odf_body(body, outline, outside, Budget(), _title_styles(content))
+    styles = _odf_part(path, "odt", "styles.xml")
+    if styles is not None:
+        for page in styles.iter(f"{S}master-page"):
+            for part in page:
+                if text := " ".join(_odf_paragraphs(part, [])).strip():
+                    outside.append(" ".join(text.split()))
+    return Reading(outline.passages(limit), list(dict.fromkeys(outside)))
+
+
+def read_ods(path: Path, limit: int) -> Reading:
+    """An OpenDocument spreadsheet's sheets, their non-empty rows as cell ranges, as Excel is read: values as last
+    calculated; hidden sheets too; comments on cells only checked for the export mark."""
+    content = _odf_part(path, "ods", "content.xml")
+    body = content.find(f"{O}body/{O}spreadsheet")
+    if body is None:
+        raise Unreadable(f"the file is not a valid {ODF_NAMES['ods']} file", "document.damaged")
+    passages: list[Passage] = []
+    budget, notes = Budget(), []
+    for sheet in body.findall(f"{TB}table"):
+        rows = _odf_rows(sheet, True, budget, notes)
+        passages += rows_in_passages([(n, trimmed(r)) for n, r in rows], limit, sheet=sheet.get(f"{TB}name", "Sheet"), cells=True)
+    return Reading(passages, list(dict.fromkeys(n for _, n in notes)))
+
+
+def read_odp(path: Path, limit: int) -> Reading:
+    """An OpenDocument presentation slide by slide, as PowerPoint is read: the title frame as the heading, the
+    other shapes' text (groups opened), their tables by rows, the speaker notes; each slide numbered as a page.
+    Footer, date and page-number frames and comments are furniture."""
+    content = _odf_part(path, "odp", "content.xml")
+    body = content.find(f"{O}body/{O}presentation")
+    if body is None:
+        raise Unreadable(f"the file is not a valid {ODF_NAMES['odp']} file", "document.damaged")
+    passages: list[Passage] = []
+    furniture: list[str] = []
+    budget = Budget()
+    slides = 0
+    for number, page in enumerate(body.findall(f"{D}page"), 1):
+        slides = number
+        title, texts, tables = "", [], []
+        notes: list[tuple[str, str]] = []
+        stack = list(reversed(list(page)))
+        while stack:
+            el = stack.pop()
+            if el.tag in (f"{P}notes", f"{D}g"):
+                stack += reversed(list(el))
+                continue
+            if el.tag in ANNOTATIONS:
+                if text := " ".join(_odf_paragraphs(el, [])).strip():
+                    furniture.append(" ".join(text.split()))
+                continue
+            kind = el.get(f"{P}class", "")
+            text = "\n".join(_odf_paragraphs(el, notes))
+            for table in _outer_tables(el):
+                if rows := [trimmed(r) for _, r in _odf_rows(table, False, budget, notes)]:
+                    tables.append(rows)
+            if not text:
+                continue
+            budget.spend(0, len(text))
+            if kind == "title" and not title:
+                title = " ".join(text.split())
+            elif kind in ("footer", "date-time", "page-number", "header"):
+                furniture.append(" ".join(text.split()))
+            else:
+                texts.append(text)
+        furniture += [n for _, n in notes]
+        passages += _slide_passages(number, title, texts, tables, limit)
+    return Reading(passages, list(dict.fromkeys(furniture)), pages=slides)
 
 
 # ---------------------------------------------------------------------- text files
