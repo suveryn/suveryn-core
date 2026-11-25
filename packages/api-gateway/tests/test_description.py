@@ -95,10 +95,8 @@ STATES = {("GET", "/health", 503)}
 # A refusal the route's own code never raises: the gateway gives it before the route is reached, by the request's size
 # or by how often a person asks, or it answers for sign-in when that can't say who is there (all app.py). Each as
 # that file says it: its code, its status where that isn't the code's own, and the file.
-# The size limit is on every PUT under a conversation, so on its pin too; an upload must say its size, and keep to it.
-BEFORE = {("PUT", "/v1/conversations/{conversation_id}"): [("conversation.too_long", None, "app.py")],
-          ("PUT", "/v1/conversations/{conversation_id}/pin"): [("conversation.too_long", None, "app.py")],
-          ("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
+# An upload must say its size, and keep to it.
+BEFORE = {("POST", "/v1/documents"): [("request.invalid", 411, "app.py"), ("upload.too_large", None, "app.py")],
           ("POST", "/v1/chat"): [("request.too_many", None, "app.py")],  # the limit on asking, per person
           ("POST", "/v1/conversations/{conversation_id}/questions"): [("request.too_many", None, "app.py")],
           ("GET", "/auth/me"): [("auth.unavailable", None, "app.py")]}  # the sign-in service can't be asked (``AuthUnavailable``)
@@ -194,15 +192,10 @@ def test_a_strict_operation_describes_the_status_of_every_code_its_own_code_rais
         assert own == expected, f"{method} {path}: describes {sorted(own)}, raises {sorted(expected)}"
 
 
-# What the chat UI makes and the gateway keeps for it as it is: a conversation's turns and what rebuilds a saved answer's
-# file. The chat UI's own data, its shape the chat UI's own (for now: the server will store each turn as it
-# answers, suveryn-tracker#251): the gateway reads in them only the documents they name, to take a deleted document's passages
-# out of them, and checks the form of those references (conversations.py ``SavedTurn``, routes/documents.py
-# ``SavedCitation``; the places held to the chat UI's shapes by tests/saved_turns_to_clean.json).
-CHAT_UIS_OWN = {"Conversation.turns": "a saved conversation's turns, as the chat UI saved them",
-         "SavedTurn": "the same, as the chat UI saves them",
-         "AnswerContent": "what rebuilds a saved answer's file: the question, the answer, its sources and checks",
-         "SavedCitation": "a source of a saved answer, as the chat UI keeps it", "SavedSource": "where that source is, as the chat UI keeps it",
+# What the gateway gives back as it keeps it: a conversation's turns, each its row and what the server wrote beside it
+# (``AskedTurn``, ``AnsweredTurn``, a playbook's own turns), and what rebuilds a saved answer's file
+# (``conversations.SavedAnswer``).
+CHAT_UIS_OWN = {"Conversation.turns": "a conversation's turns, as the server keeps them",
          "DocumentContent.content": "what rebuilds a saved answer's file, as it is read back"}
 
 

@@ -16,7 +16,6 @@ from ..conversations import (
     MAX_TURN_TEXT,
     MAX_TURNS,
     Conversation,
-    ConversationIn,
     ConversationSummary,
     Deleted,
     MoveIn,
@@ -104,8 +103,8 @@ async def set_conversation_shared(conversation_id: str, body: ShareIn, request: 
 
 @router.patch("/v1/conversations/{conversation_id}", response_model=ConversationSummary, responses=refusals(404, 422))
 async def update_conversation(conversation_id: str, body: RenameIn, request: Request):
-    """Rename one of the caller's conversations (docs/design/chat-ui.md §4). The title is kept over
-    later saves, which otherwise name a conversation after its first question."""
+    """Rename one of the caller's conversations (docs/design/chat-ui.md §4), which is otherwise named after its first
+    question."""
     store = history_or_503(request)
     changed = await run_in_threadpool(store.rename, _conversation_id(conversation_id), owner_of(request), body.title)
     if changed is None:
@@ -113,7 +112,7 @@ async def update_conversation(conversation_id: str, body: RenameIn, request: Req
     return changed
 
 
-@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 413, 422))
+@router.put("/v1/conversations/{conversation_id}/pin", response_model=ConversationSummary, responses=refusals(404, 409, 422))
 async def set_conversation_pinned(conversation_id: str, body: PinIn, request: Request):
     """Pin or unpin one of the caller's personal conversations (§3). A conversation in a case has no
     pin of its own: it follows its case. Personal, so not in any access log."""
@@ -285,47 +284,6 @@ def _gone(request: Request, cited: set[str], scope: Scope):
     if not cited or docs is None or docs.state != "ready":
         return None
     existing = docs.existing(sorted(cited), scope)
-    return lambda d: d not in existing
-
-
-@router.put("/v1/conversations/{conversation_id}", status_code=204, responses=refusals(404, 413, 422))
-async def save_conversation(conversation_id: str, body: ConversationIn, request: Request):
-    """Save the whole conversation under an id the client chose (a UUID): its turns' rows are brought in
-    line with the body's. ``case_id`` puts a new conversation in that case (the caller must be able to
-    read it); a saved conversation stays where it was first saved. A playbook run's conversation is
-    written by the server, never saved over: 404."""
-    store, cid, owner = history_or_503(request), _conversation_id(conversation_id), owner_of(request)
-    scope = await scope_of(request, body.case_id, "read")
-    gone = await run_in_threadpool(_deleted_documents, request, body, scope)
-    if not await run_in_threadpool(store.save, cid, owner, body, gone, who(request)[0]):
-        raise Problem("request.not_found", "Unknown conversation.")
-    # A document deleted while this save was on its way (after the check above, before its cleaning
-    # could see this save) is taken out now: its passages never stay (audit of 21 October 2026, finding 3).
-    if (later := await run_in_threadpool(_deleted_documents, request, body, scope)) is not None:
-        for d in cited_documents([t.model_dump() for t in body.turns]):
-            try:
-                did = uuid.UUID(d)
-            except ValueError:
-                continue
-            if later(str(did)) and (gone is None or not gone(str(did))):
-                await run_in_threadpool(store.remove_document, owner, did, False, None)
-    return Response(status_code=204)
-
-
-def _deleted_documents(request: Request, body: ConversationIn, scope: Scope):
-    """Which documents the conversation cites that no longer exist (suveryn-tracker#12): a tab that
-    was open while one was deleted must not save its passages back. None if that can't be known."""
-    docs = request.app.state.documents
-    if docs is None or docs.state != "ready":
-        return None
-    cited = cited_documents([t.model_dump() for t in body.turns])
-    valid = []
-    for d in cited:
-        try:
-            valid.append(str(uuid.UUID(d)))
-        except ValueError:
-            continue
-    existing = docs.existing(valid, scope) if valid else set()
     return lambda d: d not in existing
 
 

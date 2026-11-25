@@ -12,11 +12,11 @@ import uuid
 
 import httpx
 import pytest
+from conftest import kept
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.conversations import (
-    ConversationIn,
     ConversationSettings,
     ConversationStore,
     Turn,
@@ -78,13 +78,13 @@ def test_the_model_reads_the_branch_of_the_tree_on_the_way_to_the_question():
     assert len(path_to(looped, 2)) <= 3  # a loop in what was stored ends
 
 
-def test_the_pairs_are_read_from_the_servers_turns_and_from_turns_the_chat_ui_saved():
+def test_the_pairs_are_read_from_the_servers_turns_with_only_answers_written_out():
     turns = [turn(1, "user", "q1"), turn(2, "assistant", "a1", kind="answer", outcome="done"),
              turn(3, "user", "q2"), turn(4, "assistant", "", kind="answer", outcome="failed"),
-             turn(5, "user", "q3"), turn(6, "assistant", "a3", status="done"),  # saved by the chat UI before #251
+             turn(5, "user", "q3"), turn(6, "assistant", "a3", status="done"),  # not the server's: no outcome, not read
              turn(7, "user", "q4"), turn(8, "assistant", "a4 so far", kind="answer", outcome="stopped"),
              turn(9, "user", "q5")]
-    assert history_pairs(turns) == [("q1", "a1"), ("q2", None), ("q3", "a3"), ("q4", None), ("q5", None)]
+    assert history_pairs(turns) == [("q1", "a1"), ("q2", None), ("q3", None), ("q4", None), ("q5", None)]
     assert history_pairs(path_to(turns, 9)) == history_pairs(turns)  # without parents: each follows the one before
 
 
@@ -194,7 +194,7 @@ def test_a_question_and_its_answer_are_stored_by_the_server_and_read_back_to_the
 def test_someone_elses_conversation_or_a_runs_is_not_asked_in(store):
     c, kc = app(store, llm_transport([]))
     cid = uuid.uuid4()
-    store.save(cid, ALICE, ConversationIn(title="Prijs", turns=[{"role": "user", "text": "Wat is de koopprijs?"}]))
+    kept(store, cid, ALICE, [{"role": "user", "text": "Wat is de koopprijs?"}], "Prijs")
     run = uuid.uuid4()
     store.create_for_run(run, uuid.uuid4(), ALICE, "Akte", uuid.uuid4())
     with c:
@@ -209,26 +209,11 @@ def test_a_conversation_past_the_keep_period_is_not_asked_in(store):
     """Gone from every list once the office's keep period has passed, and deleted by the next sweep: not continued in
     the meantime either (the route answers 404 for what ``place`` says can't be asked in)."""
     old = uuid.uuid4()
-    store.save(old, ALICE, ConversationIn(title="Oud", turns=[{"role": "user", "text": "?"}]))
+    kept(store, old, ALICE, [{"role": "user", "text": "?"}], "Oud")
     store._execute("UPDATE conversations SET updated_at = now() - interval '400 days' WHERE id = %s", (old,))
     assert store.place(old) == (ALICE, None, False)  # kept until deleted by hand: still asked in
     store.keep = "1y"
     assert store.place(old) == (ALICE, None, True)
-
-
-@needs_db
-def test_a_conversation_the_chat_ui_saved_goes_on_on_the_server(store):
-    """A conversation saved the old way (the chat UI's whole list): its completed answers are read to the model."""
-    captured: list[dict] = []
-    c, kc = app(store, llm_transport(captured))
-    cid = uuid.uuid4()
-    store.save(cid, ALICE, ConversationIn(title="Prijs", turns=[
-        {"role": "user", "text": "Wat is de koopprijs?", "attachments": []},
-        {"role": "assistant", "text": "€ 345.000", "status": "done", "citations": []}]))
-    with c, c.stream("POST", f"/v1/conversations/{cid}/questions", json={"text": "En de datum?", "after": 2}, headers=as_user(kc, ALICE)) as r:
-        events(r)
-    assert [m["content"] for m in captured[-1]["messages"] if m["role"] == "assistant"] == ["€ 345.000"]
-    assert len(store.turns_of(cid)) == 4
 
 
 def numbered(captured: list[dict]) -> httpx.MockTransport:

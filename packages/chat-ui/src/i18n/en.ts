@@ -436,7 +436,6 @@ const en = {
   answerFailedPlain: "The answer failed. Ask again.",
   narrowedTo: m("Your question names a document: only {file} was read.", "file"),
   thinkingCut: "Thorough thought for too long without an answer, so this one was written without thinking. Ask more narrowly to have it thought through.",
-  answerInterrupted: "This answer was interrupted.",
   answerTruncated: "Cut off: this answer is incomplete. Ask for the rest.",
   thoughtTooLong: "The model thought too long. Try Fast, or a smaller question.",
   answerStopped: "Stopped. Incomplete and not checked.",

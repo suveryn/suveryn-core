@@ -246,14 +246,18 @@
    "titles": null,
    "turns": [
     {
-     "id": "t1",
+     "by": "alice-sub",
+     "kind": "question",
+     "parent": null,
      "role": "user",
      "text": "Wat is de koopprijs?"
     },
     {
-     "id": "t2",
+     "by": "assistant",
+     "kind": "answer",
+     "outcome": "done",
+     "parent": 1,
      "role": "assistant",
-     "status": "done",
      "text": "€ 345.000 [1]"
     }
    ],
@@ -319,19 +323,6 @@
   "media_type": "application/json",
   "status": 200
  },
- "too_long": {
-  "body": {
-   "code": "conversation.too_long",
-   "detail": "This conversation is too long to save.",
-   "kind": "refused",
-   "params": {},
-   "status": 413,
-   "title": "The conversation is too long to save.",
-   "type": "urn:suveryn:problem:conversation.too_long"
-  },
-  "media_type": "application/problem+json",
-  "status": 413
- },
  "too_long_to_ask_in": {
   "body": {
    "code": "conversation.too_long",
@@ -339,7 +330,7 @@
    "kind": "refused",
    "params": {},
    "status": 413,
-   "title": "The conversation is too long to save.",
+   "title": "The conversation is too long to ask in.",
    "type": "urn:suveryn:problem:conversation.too_long"
   },
   "media_type": "application/problem+json",

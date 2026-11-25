@@ -413,7 +413,6 @@ const fr: Messages = {
   answerFailedPlain: "La réponse a échoué. Posez à nouveau la question.",
   narrowedTo: m("Votre question nomme un document : seul {file} a été lu."),
   thinkingCut: "Approfondi a réfléchi trop longtemps sans réponse ; cette réponse a donc été écrite sans réflexion. Posez une question plus précise pour qu'elle soit approfondie.",
-  answerInterrupted: "Cette réponse a été interrompue.",
   answerTruncated: "Interrompue : cette réponse est incomplète. Demandez la suite.",
   thoughtTooLong: "Le modèle a réfléchi trop longtemps. Essayez Rapide, ou une question plus courte.",
   answerStopped: "Arrêtée. Incomplète et non vérifiée.",

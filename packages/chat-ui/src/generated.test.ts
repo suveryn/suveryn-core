@@ -20,8 +20,6 @@ const NOT_CALLED: Record<string, string> = {
   askQuestion: "the screens ask only in a conversation the server keeps (askInConversation); an answer without one is the gateway's for other callers, the screens don't ask when the store is down (suveryn-tracker#251)",
   getDocumentOriginal: "the file as uploaded is opened by the browser, as a link: the generated address (api.ts, originalUrl)",
   askInConversation: "a question in a saved conversation is answered as a stream, read as it comes (api.ts, askInConversation): at the generated address, with the generated body and events",
-  saveConversation: "the server stores each turn as it answers: no screen saves a conversation whole any more; the route goes in a later step (suveryn-tracker#251)",
-  saveAnswerAsDocument: "an answer is saved to its case by naming the turn the server stored (saveTurnAsDocument); the route goes in a later step (suveryn-tracker#251)",
 };
 /** Whether hand-written `text` names the address `generated` code calls: at the start of a string, each part
  *  (`${caseId}`) whatever it is called there, and nothing more of an address after it; or the address up to its first

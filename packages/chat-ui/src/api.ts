@@ -288,8 +288,8 @@ export function pagesWith(warnings: Warning[] | undefined, codes: string[]): num
  *  goes with its case; `titles`: a run's title in every language (the pack's words), of which listedTitle shows the
  *  reader's. */
 export type ConversationSummary = gateway.ConversationSummary;
-/** A conversation with its turns, as the gateway gives them back: ones the server stored as it answered (suveryn-tracker
- *  #251) and ones the chat UI saved whole before, both read into the chat UI's `Turn` (lib/conversations.ts, `savedConversation`). */
+/** A conversation with its turns, as the gateway gives them back: the ones the server stored as it answered
+ *  (suveryn-tracker#251), read into the chat UI's `Turn` (lib/conversations.ts, `savedConversation`). */
 export type SavedConversation = Omit<gateway.Conversation, "turns"> & { turns: Turn[] };
 
 /** A case (dossier), suveryn-tracker#10: the office's own file number as reference, never a client's
@@ -552,7 +552,7 @@ export const listConversations = (caseId?: string | null) => answered(gateway.li
  *  most recently changed first: the sidebar's "Conversations" (docs/design/chat-ui.md). */
 export const listAllConversations = () => answered(gateway.listConversations({ all: true }));
 export const getConversation = (id: string) => answered(gateway.getConversation(encodeURIComponent(id))) as Promise<SavedConversation>;
-/** Renames one of the signed-in user's conversations; the title is kept over later saves (§4). */
+/** Renames one of the signed-in user's conversations, otherwise named after its first question (§4). */
 export const renameConversation = (id: string, title: string) => answered(gateway.updateConversation(encodeURIComponent(id), { title }));
 /** Pins one of the signed-in user's personal conversations in their sidebar, or unpins it (§3). */
 export const pinConversation = (id: string, pinned: boolean) => answered(gateway.setConversationPinned(encodeURIComponent(id), { pinned }));

@@ -2,7 +2,6 @@
 answers saved to a case.
 Available when ``suveryn-rag`` is installed and a database is configured; otherwise 503."""
 
-import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -12,7 +11,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, File, Request, Response, UploadFile
 from suveryn_harness.messages import Problem, stored
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_serializer
+from pydantic import BaseModel, ValidationError, model_serializer
 
 from ..conversations import ConversationSummary, SavedAnswer, file_name, search_text
 from ..description import Answer
@@ -188,8 +187,8 @@ class SavedAnswerDocument(Answer):
 
 
 class DocumentContent(Answer):
-    """What rebuilds a document sūveryn made: the chat UI's own data, as it saved it (``AnswerContent``), or in the
-    same shape as the server copied it from the answer it stored (``conversations.SavedAnswer``, #251)."""
+    """What rebuilds an answer saved to its case: the answer as the server copied it from the one it stored
+    (``conversations.SavedAnswer``, #251)."""
 
     id: str
     filename: str
@@ -389,76 +388,6 @@ async def list_document_conversations(document_id: str, request: Request, case: 
 
 
 # ---------------------------------------------------------------------- answers saved to a case
-MAX_CONTENT_BYTES = 2_000_000  # an answer, its sources' passages and its checks; a long one is ~100 kB
-
-
-class SavedSource(BaseModel):
-    """Where a source of a saved answer is, as the chat UI keeps it: the gateway reads only the document it names."""
-
-    model_config = ConfigDict(extra="allow")
-    document_id: str = Field(max_length=100)
-
-
-class SavedCitation(BaseModel):
-    """A source of the saved answer, as the chat shows it; checked so a deleted document can be taken out."""
-
-    model_config = ConfigDict(extra="allow")
-    text: str = Field(max_length=200_000)
-    source: SavedSource | None = None
-
-
-class AnswerContent(BaseModel):
-    """What rebuilds the Word file (the chat UI's own data): the question, the answer as written, its
-    sources and checks, and the file names of the sources as they were."""
-
-    model_config = ConfigDict(extra="allow")
-    question: str = Field(max_length=20_000)
-    answer: str = Field(max_length=200_000)
-    citations: list[SavedCitation] = Field(default_factory=list, max_length=200)
-    filenames: dict[str, str] = Field(default_factory=dict)
-
-
-class SaveAnswerIn(BaseModel):
-    """Body of ``POST /v1/cases/{id}/documents``: an answer saved to the case (docs/design/chat-ui.md §5)."""
-
-    filename: str = Field(min_length=6, max_length=200, pattern=r"^[^/\\\x00-\x1f]+\.docx$")
-    text: str = Field(min_length=1, max_length=200_000)  # what search finds: the question and the answer
-    content: AnswerContent
-    conversation_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
-    # The chat UI's own id for the answer: never "<conversation>/<seq>", which names an answer the server copied
-    # (save_turn_as_document), so a saved answer sent whole can't pass for one the server copied (#251, review).
-    message_id: str = Field(min_length=1, max_length=100, pattern=r"^[^/]+$")
-
-    @field_validator("content")
-    @classmethod
-    def not_too_large(cls, v: AnswerContent) -> AnswerContent:
-        if len(v.model_dump_json()) > MAX_CONTENT_BYTES:
-            raise ValueError("the answer is too large to save")
-        return v
-
-
-@router.post("/v1/cases/{case_id}/documents", status_code=201, response_model=SavedAnswerDocument, responses={
-    200: {"model": SavedAnswerDocument, "description": "This answer was saved before: that document"}, **refusals(404, 422)})
-async def save_answer_as_document(case_id: str, body: SaveAnswerIn, request: Request, response: Response):
-    """Save an answer to its case, as a document with origin ``answer`` (docs/design/chat-ui.md §5): a
-    contributor's right in an open case. Never a source (cases.md decision 7); listed, searchable,
-    deleted with the case. Its file is rebuilt by the chat from ``content`` (``GET .../content``).
-    Saving the same message again gives the document already saved. Logged as ``answer_saved``."""
-    docs = docs_or_503(request)
-    scope = await scope_of(request, case_id, "contribute")
-    owner = owner_of(request)
-    found = await run_in_threadpool(docs.saved_answer, scope, body.message_id)
-    if found:
-        response.status_code = 200
-        return {"id": found[0], "filename": found[1], "created": False}
-    provenance = {"conversation": body.conversation_id, "message": body.message_id}
-    document_id = await run_in_threadpool(docs.store_text, body.filename, body.text, scope, "answer", provenance,
-                                          json.loads(body.content.model_dump_json()), owner)
-    await touch_case(request, scope)
-    await log_access(request, scope.case_id, "answer_saved", {"document": document_id})
-    return {"id": document_id, "filename": body.filename, "created": True}
-
-
 @router.post("/v1/conversations/{conversation_id}/turns/{seq}/document", status_code=201, response_model=SavedAnswerDocument,
              responses={200: {"model": SavedAnswerDocument, "description": "This answer was saved before: that document"},
                         **refusals(404, 409, 422)})
