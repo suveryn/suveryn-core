@@ -24,6 +24,8 @@ import os
 import uuid
 from collections import Counter
 
+import psycopg
+
 from fastapi import APIRouter, Request
 from fastapi.concurrency import run_in_threadpool
 from suveryn_harness import BackendError, DocumentsUnavailable
@@ -53,6 +55,7 @@ from ..playbooks import (
 from .common import (
     DocumentNotFound,
     Scope,
+    SearchUnavailable,
     admin_or_403,
     case_for,
     docs_or_503,
@@ -263,15 +266,21 @@ async def _walk(request: Request, run: Run, pb: Playbook, case: Case) -> Run:
 
 async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, case: Case) -> None:
     rid, owner = uuid.UUID(run.id), owner_of(request)
-    filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
-    if not filenames:
-        await run_in_threadpool(store.fail, rid, message("run.no_document"))
-        return
-    await run_in_threadpool(store.set_documents, rid, list(filenames))
     slots = slots_of(request.app)
-    if not slots.take(owner):
-        await run_in_threadpool(store.fail, rid, message("run.too_many"))
-        raise Problem("run.too_many", "too many playbook runs are reading; start this one when one has finished")
+    try:  # the run is marked reading: whatever stops its reading here fails it now, not at the sweep (suveryn-tracker#275)
+        filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
+        if not filenames:
+            await run_in_threadpool(store.fail, rid, message("run.no_document"))
+            return
+        await run_in_threadpool(store.set_documents, rid, list(filenames))
+        if not slots.take(owner):
+            await run_in_threadpool(store.fail, rid, message("run.too_many"))
+            raise Problem("run.too_many", "too many playbook runs are reading; start this one when one has finished")
+    except Problem:
+        raise
+    except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
+        await _run_failed(store, rid, e)
+        return
     task = asyncio.create_task(_read(request.app, runtime, store, run, pb, step, filenames, owner, case.reference))
     request.app.state.running.add(task)
     request.app.state.reading[run.id] = task
@@ -302,18 +311,26 @@ async def _read(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, 
     try:
         await _reading(app, runtime, store, run, pb, step, filenames, owner, reference)
     except Exception as e:  # noqa: BLE001 - the run must end in a state; the message may hold document text
-        await _failed_unplanned(store, uuid.UUID(run.id), e)
+        await _run_failed(store, uuid.UUID(run.id), e)
 
 
-async def _failed_unplanned(store: RunStore, run_id: uuid.UUID, e: Exception) -> None:
-    """A run's failure nobody planned for: a reference for the person, and the log line under it (type and place,
-    never the message). Only a run still reading is failed: one stopped, cancelled or walked on stays as it is."""
-    ref, where = unplanned(e)
-    log.error("playbook run failed: internal %s: %s at %s", ref, type(e).__name__, where)
+async def _run_failed(store: RunStore, run_id: uuid.UUID, e: Exception) -> None:
+    """A run that can't read on, by what the person can do: a part that is down (the documents, the database: wait,
+    try again) fails it with that part's code; anything else nobody planned for, with `system.internal`, a
+    reference, and the log line under it (type and place, never the message). Only a run still reading is failed:
+    one stopped, cancelled or walked on stays as it is."""
+    if isinstance(e, SearchUnavailable | psycopg.OperationalError):  # the documents' part says which; the database
+        code = getattr(e, "code", None) or "system.database_unavailable"
+        log.warning("playbook run %s failed: %s (%s)", run_id, code, type(e).__name__)
+        failure = message(code)
+    else:
+        ref, where = unplanned(e)
+        log.error("playbook run failed: internal %s: %s at %s", ref, type(e).__name__, where)
+        failure = message("system.internal", ref=ref)
     try:
-        await run_in_threadpool(store.fail, run_id, message("system.internal", ref=ref))
+        await run_in_threadpool(store.fail, run_id, failure)
     except Exception as again:  # noqa: BLE001 - the store is down too; the sweep ends the run later
-        log.error("playbook run %s: its failure couldn't be stored (%s); the sweep ends it", ref, type(again).__name__)
+        log.error("playbook run %s: its failure couldn't be stored (%s); the sweep ends it", run_id, type(again).__name__)
 
 
 async def _reading(app, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, filenames: dict[str, str],

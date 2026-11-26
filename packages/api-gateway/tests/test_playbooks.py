@@ -13,12 +13,14 @@ import uuid
 from pathlib import Path
 
 import httpx
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator, OIDCProvider
 from suveryn_api_gateway.cases import CaseSettings
 from suveryn_api_gateway.playbooks import RunStore, summary_text
+from suveryn_api_gateway.routes.common import SearchUnavailable
 from suveryn_harness import LlamaServerClient, LLMSettings
 from suveryn_harness.facts import read_facts
 from suveryn_playbooks import DEED_INTAKE
@@ -747,6 +749,53 @@ def test_a_reading_whose_model_answer_cant_be_read_fails_the_run_with_a_referenc
         deliver(c, RUN.format(cid=cid, rid=rid), alice, text="Het compromis.")
         failed = wait_for(c, RUN.format(cid=cid, rid=rid), alice, "failed")
         assert (failed["failure"]["kind"], failed["failure"]["code"]) == ("internal", "system.internal") and failed["failure"]["params"]["ref"]
+
+
+@needs_db
+@pytest.mark.parametrize("failure, code", [
+    (lambda: OSError("/var/lib/suveryn/notary-ghent: nobody planned for this"), "system.internal"),
+    (lambda: SearchUnavailable("the documents' database is restarting", "system.database_unavailable"), "system.database_unavailable"),
+    (lambda: psycopg.OperationalError("connection to server at notary-ghent failed"), "system.database_unavailable"),
+], ids=["unplanned", "documents-database-down", "database-down"])
+def test_a_reading_that_cant_start_fails_its_run_at_once(runs, monkeypatch, caplog, failure, code):
+    """suveryn-tracker#275: a run marked reading whose documents couldn't be looked up or stored stayed reading, with
+    nothing behind it, until the hourly sweep called it interrupted by a restart. Now it fails at once: a part that
+    is down with that part's code (wait, try again), anything else with a reference."""
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=TABLE))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+
+    from suveryn_api_gateway.playbook_runtime import Runtime
+    walk_on, look_up, marked = Runtime.advance, Runtime.documents_to_read, []
+
+    def advance(self, run, playbook, reference):
+        step = walk_on(self, run, playbook, reference)
+        marked.append(step is not None)  # the run is now marked reading
+        return step
+
+    def documents_to_read(self, run, step):
+        if any(marked):  # the gateway looking up what the reading reads, once the run is marked reading
+            raise failure()
+        return look_up(self, run, step)
+    monkeypatch.setattr(Runtime, "advance", advance)
+    monkeypatch.setattr(Runtime, "documents_to_read", documents_to_read)
+    with TestClient(app) as c:
+        cid, alice, _ = a_case_with_a_contributor(c, kc)
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "en"}, headers=alice).json()["id"]
+        url = RUN.format(cid=cid, rid=rid)
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        r = deliver(c, url, alice, text="The agreement.")
+        failed = c.get(url, headers=alice).json()
+    assert r.status_code == 200 and failed["status"] == "failed"  # at once, not reading
+    assert failed["failure"]["code"] == code and "notary-ghent" not in caplog.text
+    if code == "system.internal":  # nobody planned for it: a reference, and the log line under it
+        ref = failed["failure"]["params"]["ref"]
+        line = next(rec.getMessage() for rec in caplog.records if ref in rec.getMessage())
+        assert "OSError at " in line and "documents_to_read" in line
+    else:  # a part that is down: its own code, no reference to chase
+        assert failed["failure"]["kind"] == "unavailable" and "ref" not in failed["failure"]["params"]
 
 
 @needs_db
