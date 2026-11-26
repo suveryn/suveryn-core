@@ -1119,6 +1119,7 @@ const nl: Messages = {
   playbooksEmpty: "Er zijn geen playbooks geïnstalleerd.",
   playbookChangeFailed: m("Het playbook kon niet gewijzigd worden. {why}"),
   pinFailed: m("Het dossier kon niet vastgezet worden. {why}"),
+  refreshFailed: m("Het scherm kon niet bijgewerkt worden. {why}"),
   rename: "Naam wijzigen",
   moveToCase: "In een dossier plaatsen",
   pinCaseInstead: "Zet het dossier vast",

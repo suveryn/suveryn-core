@@ -67,7 +67,7 @@ export function AdminStatus({ onOpen }: { onOpen: (page: AdminPage) => void }) {
       setThisPc(measured);
       if (measured && clockCheck.ok && Math.abs(measured.offset_ms) >= CLOCK_WARN_MS && !reported.current) {
         reported.current = true;
-        sendClock(measured).then(load).catch(() => undefined);
+        sendClock(measured).then(load).catch((e: Error) => setClockOutcome({ ok: false, text: m.refreshFailed({ why: e.message }) }));
       }
     }).catch(() => setThisPc(null));
   }, [clockCheck?.offset_ms, clockSynced, clockCheck, load]);

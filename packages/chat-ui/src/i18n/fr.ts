@@ -1119,6 +1119,7 @@ const fr: Messages = {
   playbooksEmpty: "Aucun playbook n'est installé.",
   playbookChangeFailed: m("Le playbook n''a pas pu être modifié. {why}"),
   pinFailed: m("Le dossier n''a pas pu être épinglé. {why}"),
+  refreshFailed: m("L''écran n''a pas pu être mis à jour. {why}"),
   rename: "Renommer",
   moveToCase: "Placer dans un dossier",
   pinCaseInstead: "Épinglez plutôt le dossier",

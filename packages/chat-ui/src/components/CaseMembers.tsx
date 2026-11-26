@@ -295,9 +295,11 @@ export function AccessLogDialog({ open, kase, onClose }: { open: boolean; kase: 
     if (!open) return;
     setError(null);
     setEvents(null);
+    // the names in the log, read beside it: a failure is said in the dialog, once (suveryn-tracker#272)
+    const namesFailed = (e: Error) => setError((shown) => shown ?? m.refreshFailed({ why: e.message }));
     listCaseEvents(kase.id).then(setEvents).catch((e: Error) => setError(e.message));
-    listMembers(kase.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(() => {});
-    casePlaybooks(kase.id).then((ps) => setTitles(new Map(ps.map((p) => [p.id, playbookWords(p, lang()).title])))).catch(() => {});
+    listMembers(kase.id).then((ms) => setNames(new Map(ms.map((x) => [x.user, x.name || x.username])))).catch(namesFailed);
+    casePlaybooks(kase.id).then((ps) => setTitles(new Map(ps.map((p) => [p.id, playbookWords(p, lang()).title])))).catch(namesFailed);
   }, [open, kase.id]);
   return (
     <Dialog isOpen={open} onClose={onClose} kind="information" title={m.accessLogTitle({ reference: kase.reference })} closeLabel={m.close} error={error}>

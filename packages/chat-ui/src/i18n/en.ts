@@ -1164,6 +1164,7 @@ const en = {
   playbooksEmpty: "No playbooks are installed.",
   playbookChangeFailed: m("The playbook couldn''t be changed. {why}", "why"),
   pinFailed: m("The case couldn''t be pinned. {why}", "why"),
+  refreshFailed: m("The screen couldn''t be brought up to date. {why}", "why"),
   rename: "Rename",
   moveToCase: "Move to a case",
   pinCaseInstead: "Pin the case instead",

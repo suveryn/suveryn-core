@@ -2,10 +2,12 @@
  * Messages are codes (suveryn-tracker#139; docs/design/messages.md): every code of the server's registry has words
  * in every language, and a code this screen doesn't know still gets a sentence in the reader's language.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TABLES_FOR_TESTS } from "../i18n";
-import { generalMessage, messageText, problemOf } from "./messages";
+import { Unreachable } from "./gateway";
+import { afterRefresh, generalMessage, messageText, problemOf } from "./messages";
 
 const REGISTRY: { areas: string[]; codes: Record<string, { kind: string; params?: Record<string, { type: string }> }> } = JSON.parse(readFileSync(
   new URL("../../../harness/src/suveryn_harness/messages.json", import.meta.url), "utf8"));
@@ -63,5 +65,64 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
     expect([401, 403, 404, 409, 413, 415, 422, 429, 500, 503].map((s) => generalMessage(s).code)).toEqual(["auth.signed_out", "request.forbidden",
       "request.not_found", "request.conflict", "request.too_large", "request.unsupported", "request.invalid", "request.too_many", "system.internal",
       "system.unavailable"]);
+  });
+});
+
+// suveryn-tracker#272: a refresh the screen makes by itself never fails in silence. This refuses `.catch(() => {})`,
+// `.catch(() => undefined)` and a catch whose comment trusts the connection check to explain a refusal; a refresh
+// goes through Chat's `refresh`, or ends in its dialog's own error line. Other empty catches (browser storage, a retry
+// asked again next round) are not refused.
+const SILENT = /\.catch\(\s*\(\)\s*=>\s*(\{\s*\}|undefined)\s*\)|catch\s*\{\s*\/\*[^*]*health check explains/;
+const SRC = new URL("..", import.meta.url).pathname;
+const sources = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
+  const path = join(dir, name);
+  if (name === "node_modules" || name === "generated") return [];
+  return statSync(path).isDirectory() ? sources(path) : /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+});
+
+describe("a failure", () => {
+  it("is never swallowed in silence", () => {
+    const silent = sources(SRC).flatMap((f) => readFileSync(f, "utf8").split("\n")
+      .map((line, i) => [`${relative(SRC, f)}:${i + 1}`, line] as const))
+      .filter(([, line]) => SILENT.test(line)).map(([where]) => where);
+    expect(silent, "say it: Chat's refresh, or the dialog's own error line").toEqual([]);
+  });
+});
+
+describe("the line after a refresh", () => {
+  const words = { refreshFailed: ({ why }: { why: string }) => `The screen couldn't be brought up to date. ${why}` };
+  const refused = new Error("You can't see this case.");
+  const said = words.refreshFailed({ why: refused.message });
+  const empty = { shown: null, own: null, failing: [] };
+  const up = { shown: said, own: said, failing: ["caseRuns"] };
+
+  it("says a refusal, with the gateway's words", () => {
+    expect(afterRefresh(empty, "caseRuns", refused, words)).toEqual(up);
+  });
+  it("leaves a gateway that can't be reached to the connection check", () => {
+    expect(afterRefresh(empty, "runs", new Unreachable("sūveryn can't be reached."), words)).toEqual(empty);
+  });
+  it("says it once: the same failure again, or another, leaves the line as it stands", () => {
+    expect(afterRefresh(up, "caseRuns", refused, words)).toEqual(up);
+    expect(afterRefresh(up, "documents", new Error("Something went wrong (7F3K-92QD)."), words))
+      .toEqual({ ...up, failing: ["caseRuns", "documents"] });
+    const other = { shown: "The case couldn't be pinned.", own: null, failing: [] };
+    expect(afterRefresh(other, "runs", refused, words)).toEqual(other);
+  });
+  it("stays while the refresh that failed still fails, though others work (never flickers)", () => {
+    expect(afterRefresh(up, "runs", null, words)).toEqual(up);
+  });
+  it("goes when every refresh that failed works again, and only its own line", () => {
+    expect(afterRefresh(up, "caseRuns", null, words)).toEqual(empty);
+    const both = { ...up, failing: ["caseRuns", "documents"] };
+    expect(afterRefresh(afterRefresh(both, "caseRuns", null, words), "documents", null, words)).toEqual(empty);
+    const other = { shown: "The case couldn't be pinned.", own: said, failing: ["caseRuns"] };
+    expect(afterRefresh(other, "caseRuns", null, words)).toEqual({ ...other, own: null, failing: [] });
+  });
+  it("forgets what failed once the line was cleared, so a read made only once can't hold a later line up", () => {
+    const cleared = { shown: null, own: said, failing: ["me"] };  // the person asked a question meanwhile
+    const later = afterRefresh(cleared, "documents", refused, words);
+    expect(later).toEqual({ shown: said, own: said, failing: ["documents"] });
+    expect(afterRefresh(later, "documents", null, words)).toEqual(empty);
   });
 });
