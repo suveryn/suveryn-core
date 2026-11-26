@@ -163,7 +163,7 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   in the reader's language of the day it is shown. "The connection closed before the answer was complete" is the
   page's own sentence: the server never says it.
 - **A run that failed stores why as a message** (#153): `failure`, `{kind, code, params}`, kept as its code and
-  parameters (rule 6). By what the person can do: `model.unavailable`, `document.unavailable` and
+  parameters (rule 6). By what the person can do: `model.unavailable`, `document.unavailable`,
   `system.database_unavailable` and `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
   (nothing could be read), `system.internal` with a reference (nobody planned for it). `run.interrupted` is only
   for a reading a restart or the sweep ended: one that fails while it starts, reads or goes on fails at once, with

@@ -319,9 +319,8 @@ async def _run_failed(store: RunStore, run_id: uuid.UUID, e: Exception) -> None:
     try again) fails it with that part's code; anything else nobody planned for, with `system.internal`, a
     reference, and the log line under it (type and place, never the message). Only a run still reading is failed:
     one stopped, cancelled or walked on stays as it is."""
-    if isinstance(e, SearchUnavailable | DocumentsUnavailable | psycopg.OperationalError):
-        code = getattr(e, "code", None) or ("system.database_unavailable" if isinstance(e, psycopg.OperationalError)
-                                            else "document.unavailable")
+    if isinstance(e, SearchUnavailable | psycopg.OperationalError):  # the documents' part says which; the database
+        code = getattr(e, "code", None) or "system.database_unavailable"
         log.warning("playbook run %s failed: %s (%s)", run_id, code, type(e).__name__)
         failure = message(code)
     else:
