@@ -263,11 +263,15 @@ async def _walk(request: Request, run: Run, pb: Playbook, case: Case) -> Run:
 
 async def _start_read(request: Request, runtime: Runtime, store: RunStore, run: Run, pb: Playbook, step: Step, case: Case) -> None:
     rid, owner = uuid.UUID(run.id), owner_of(request)
-    filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
-    if not filenames:
-        await run_in_threadpool(store.fail, rid, message("run.no_document"))
+    try:
+        filenames = await run_in_threadpool(runtime.documents_to_read, run, step)
+        if not filenames:
+            await run_in_threadpool(store.fail, rid, message("run.no_document"))
+            return
+        await run_in_threadpool(store.set_documents, rid, list(filenames))
+    except Exception as e:  # noqa: BLE001 - the run is marked reading: it fails now, not at the sweep (suveryn-tracker#275)
+        await _failed_unplanned(store, rid, e)
         return
-    await run_in_threadpool(store.set_documents, rid, list(filenames))
     slots = slots_of(request.app)
     if not slots.take(owner):
         await run_in_threadpool(store.fail, rid, message("run.too_many"))

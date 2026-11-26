@@ -750,6 +750,44 @@ def test_a_reading_whose_model_answer_cant_be_read_fails_the_run_with_a_referenc
 
 
 @needs_db
+def test_a_reading_that_cant_start_fails_its_run_at_once_with_a_reference(runs, monkeypatch, caplog):
+    """suveryn-tracker#275: a run marked reading whose documents couldn't be looked up or stored stayed reading, with
+    nothing behind it, until the hourly sweep called it interrupted by a restart. Now it fails at once."""
+    kc, cases, history, docs = FakeKeycloak(), FakeCases(), FakeConversations(), FakeDocuments(owner=ALICE)
+    auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
+    llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=llm_transport([], text=TABLE))
+    app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
+                     case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
+
+    from suveryn_api_gateway.playbook_runtime import Runtime
+    walk_on, look_up, marked = Runtime.advance, Runtime.documents_to_read, []
+
+    def advance(self, run, playbook, reference):
+        step = walk_on(self, run, playbook, reference)
+        marked.append(step is not None)  # the run is now marked reading
+        return step
+
+    def documents_to_read(self, run, step):
+        if any(marked):  # the gateway looking up what the reading reads, once the run is marked reading
+            raise OSError("/var/lib/suveryn/notary-ghent: nobody planned for this")
+        return look_up(self, run, step)
+    monkeypatch.setattr(Runtime, "advance", advance)
+    monkeypatch.setattr(Runtime, "documents_to_read", documents_to_read)
+    with TestClient(app) as c:
+        cid, alice, _ = a_case_with_a_contributor(c, kc)
+        rid = c.post(f"/v1/cases/{cid}/playbooks/deed-intake/runs", json={"language": "en"}, headers=alice).json()["id"]
+        url = RUN.format(cid=cid, rid=rid)
+        docs.docs[DOC] = (Scope.case(uuid.UUID(cid)), "uploaded")
+        r = deliver(c, url, alice, text="The agreement.")
+        failed = c.get(url, headers=alice).json()
+    assert r.status_code == 200 and failed["status"] == "failed"  # at once, not reading
+    assert (failed["failure"]["kind"], failed["failure"]["code"]) == ("internal", "system.internal")
+    ref = failed["failure"]["params"]["ref"]
+    line = next(rec.getMessage() for rec in caplog.records if ref in rec.getMessage())
+    assert "OSError at " in line and "documents_to_read" in line and "notary-ghent" not in caplog.text
+
+
+@needs_db
 def test_a_run_that_cant_go_on_after_its_reading_fails_at_once_with_a_reference(runs, monkeypatch, caplog):
     """The code review of 25 November: a step that failed after the model's answer was in left the run reading
     until the hourly sweep called it interrupted by a restart. Now it fails at once, as nobody planned for it."""
