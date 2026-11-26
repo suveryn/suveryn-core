@@ -199,17 +199,24 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const [problem, setProblem] = useState<string | null>(null);
   // A refresh the screen makes by itself (a list read again, the running playbooks every 15 s) that failed
   // (suveryn-tracker#272): the connection check when the gateway can't be reached, else its words in the line
-  // above the conversation, said once; what the screen shows stays. The running playbooks read again take the
-  // line away (lib/messages.ts, afterRefresh).
-  const refreshLine = useRef<string | null>(null);
-  const refreshed = (failure: Error | null) => {
+  // above the conversation, said once; what the screen shows stays. The line goes once every refresh that failed
+  // works again (lib/messages.ts, afterRefresh).
+  const problemNow = useRef(problem);
+  problemNow.current = problem;
+  const refreshLine = useRef<{ own: string | null; failing: string[] }>({ own: null, failing: [] });
+  const refreshed = (name: string, failure: Error | null) => {
     if (failure instanceof Unreachable) setChecks((c) => c + 1);
-    setProblem((shown) => { const line = afterRefresh(shown, refreshLine.current, failure, t()); refreshLine.current = line.own; return line.shown; });
+    const line = afterRefresh({ shown: problemNow.current, ...refreshLine.current }, name, failure, t());
+    refreshLine.current = { own: line.own, failing: line.failing };
+    if (line.shown !== problemNow.current) { problemNow.current = line.shown; setProblem(line.shown); }
   };
-  const refreshFailed = (e: unknown) => refreshed(e instanceof Error ? e : new Error(String(e)));
+  /** Read `name` again and use what comes back; a failure is said, and the line goes when it works again. */
+  const refresh = <T,>(name: string, read: Promise<T>, use: (value: T) => void): Promise<void> =>
+    read.then((value) => { use(value); refreshed(name, null); },
+              (e: unknown) => refreshed(name, e instanceof Error ? e : new Error(String(e))));
   // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
   useEffect(() => {
-    const again = () => { getMe().then((user) => { if (user) onMe(user); }).catch(refreshFailed); };
+    const again = () => { refresh("me", getMe(), (user) => { if (user) onMe(user); }); };
     window.addEventListener(ME_CHANGED, again);
     return () => window.removeEventListener(ME_CHANGED, again);
   }, []);
@@ -273,7 +280,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const names = useMemo(() => new Map([...Object.entries(departed), ...caseMembers.map((x) => [x.user, x.name || x.username] as [string, string])]),
                         [caseMembers, departed]);
   // The Documents overview names who added each document, a deleted account's too (round 2, finding 5).
-  useEffect(() => { if (view === "documents") departedNames().then(setDeparted).catch(refreshFailed); }, [view]);
+  useEffect(() => { if (view === "documents") refresh("departed", departedNames(), setDeparted); }, [view]);
   // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
@@ -324,11 +331,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
 
   // ---------------------------------------------------------------- server state
   const refreshDocuments = useCallback(async () => {
-    try {
-      const r = await listDocuments(caseId);
-      setDocuments(r.documents);
-      setJobs(r.jobs);
-    } catch (e) { refreshFailed(e); }
+    await refresh("documents", listDocuments(caseId), (r) => { setDocuments(r.documents); setJobs(r.jobs); });
   }, [caseId]);
 
   // The server's health, every HEALTH_EVERY ms; *Try now* (the server-unreachable bar) checks at once.
@@ -350,7 +353,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       // when the server comes back or the list is still empty.
       if (h !== null && (Date.now() - modelsReadAt.current > MODELS_EVERY || !reachableRef.current)) {
         modelsReadAt.current = Date.now();  // tried: a failure waits for the next minute, never asks again at once
-        try { const m = await listModels(); if (alive) setModels(m); } catch (e) { refreshFailed(e); }
+        await refresh("models", listModels(), (m) => { if (alive) setModels(m); });
       }
       reachableRef.current = h !== null;
     })();
@@ -373,15 +376,15 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   }, [caseId, documentsReady, administers, refreshDocuments]);
 
   const refreshConversations = useCallback(async () => {
-    try { setConversations(await listConversations(caseId)); } catch (e) { refreshFailed(e); }
-    try { setAllConversations(await listAllConversations()); } catch (e) { refreshFailed(e); }
+    await refresh("conversations", listConversations(caseId), setConversations);
+    await refresh("allConversations", listAllConversations(), setAllConversations);
   }, [caseId]);
   useEffect(() => { if (historyReady && !administers) refreshConversations(); }, [historyReady, refreshConversations, administers]);
-  useEffect(() => { if (documentsReady) listAllDocuments().then(setAllDocuments).catch(refreshFailed); }, [documentsReady, documents, caseId]);
+  useEffect(() => { if (documentsReady) refresh("allDocuments", listAllDocuments(), setAllDocuments); }, [documentsReady, documents, caseId]);
 
   // Every case the user may see, open and closed: the sidebar's rows and its pinned cases.
   const refreshCases = useCallback(async () => {
-    try { setCases(await listCases(true)); } catch (e) { refreshFailed(e); }
+    await refresh("cases", listCases(true), setCases);
   }, []);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
   // The overviews' cases, with their members and last activity: read again whenever one is opened
@@ -395,8 +398,8 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   // shared conversation or saved answer appears without reloading the page (Pod check of 5e9a539).
   useEffect(() => {
     if (!inOverview) return;
-    if (documentsReady) listAllDocuments().then(setAllDocuments).catch(refreshFailed);
-    if (historyReady && !administers) listAllConversations().then(setAllConversations).catch(refreshFailed);
+    if (documentsReady) refresh("allDocuments", listAllDocuments(), setAllDocuments);
+    if (historyReady && !administers) refresh("allConversations", listAllConversations(), setAllConversations);
   }, [inOverview, view, documentsReady, historyReady, administers]);
 
   // Administrators: backups that need attention, a bar outside the Backups page (read again on returning
@@ -432,8 +435,8 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
     if (view === "admin") return;
     let stopped = false;
     const load = () => {
-      activeRuns_().then((r) => { if (!stopped) { setActiveRuns(r); refreshed(null); } }).catch(refreshFailed);
-      if (caseId) caseRuns(caseId).then((r) => { if (!stopped) setRunsHere(r); }).catch(refreshFailed);
+      refresh("runs", activeRuns_(), (r) => { if (!stopped) setActiveRuns(r); });
+      if (caseId) refresh("caseRuns", caseRuns(caseId), (r) => { if (!stopped) setRunsHere(r); });
       else setRunsHere([]);
     };
     load();
@@ -688,7 +691,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
     } finally {
       setBusy(false);
       abort.current = null;
-      listModels().then(setModels).catch(refreshFailed); // which model is loaded may have changed
+      refresh("models", listModels(), setModels); // which model is loaded may have changed
     }
     refreshConversations();  // a new conversation is listed, a known one moves up
     // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
@@ -911,15 +914,15 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
     setJobs([]);
     setConversations([]);
     setCaseMembers([]);
-    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(refreshFailed);
+    if (c && c.my_role !== null) refresh("case", getCase(c.id), (fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur)));
     if (c && c.my_role !== null) loadMembers(c.id);
   };
   // A case's members, unless another case was opened meanwhile, and the names of deleted accounts,
   // so what they did in the case keeps its name. Fetched when a case opens, never in the body: there
   // it ran on every render, and each answer caused the next (round 2, finding 1).
   const loadMembers = (id: string) => {
-    listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(refreshFailed);
-    departedNames().then(setDeparted).catch(refreshFailed);
+    refresh("members", listMembers(id), (ms) => { if (openCaseId.current === id) setCaseMembers(ms); });
+    refresh("departed", departedNames(), setDeparted);
   };
   // Opening a case or the personal space: a new chat there.
   const openCase = (c: Case | null) => {
@@ -1230,7 +1233,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
                              documents={allDocuments} jobs={jobs} jobsCase={caseId} cases={casesWithMembers} onOpen={openDocument} onDelete={removeListed}
                              onUpload={(files) => { setView("chat"); if (documentsReady) attachFiles(files); else setProblem(m.documentsCantBeAdded); }}
                              onUseAsSource={async (d) => {
-                               try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(refreshFailed); refreshDocuments(); }
+                               try { await confirmAsSource(d.id, d.case_id); refresh("allDocuments", listAllDocuments(), setAllDocuments); refreshDocuments(); }
                                catch (e) { setProblem(m.useAsSourceFailed({ why: (e as Error).message })); }
                              }} />
         </div>}

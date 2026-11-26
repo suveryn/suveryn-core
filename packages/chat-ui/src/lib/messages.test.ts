@@ -70,7 +70,7 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
 
 // suveryn-tracker#272: a refresh the screen makes by itself never fails in silence. This refuses `.catch(() => {})`,
 // `.catch(() => undefined)` and a catch whose comment trusts the connection check to explain a refusal; a refresh
-// ends in Chat's `refreshFailed`, or in its dialog's own error line. Other empty catches (browser storage, a retry
+// goes through Chat's `refresh`, or ends in its dialog's own error line. Other empty catches (browser storage, a retry
 // asked again next round) are not refused.
 const SILENT = /\.catch\(\s*\(\)\s*=>\s*(\{\s*\}|undefined)\s*\)|catch\s*\{\s*\/\*[^*]*health check explains/;
 const SRC = new URL("..", import.meta.url).pathname;
@@ -85,7 +85,7 @@ describe("a failure", () => {
     const silent = sources(SRC).flatMap((f) => readFileSync(f, "utf8").split("\n")
       .map((line, i) => [`${relative(SRC, f)}:${i + 1}`, line] as const))
       .filter(([, line]) => SILENT.test(line)).map(([where]) => where);
-    expect(silent, "say it: App's refreshFailed, or the dialog's own error line").toEqual([]);
+    expect(silent, "say it: Chat's refresh, or the dialog's own error line").toEqual([]);
   });
 });
 
@@ -93,20 +93,30 @@ describe("the line after a refresh", () => {
   const words = { refreshFailed: ({ why }: { why: string }) => `The screen couldn't be brought up to date. ${why}` };
   const refused = new Error("You can't see this case.");
   const said = words.refreshFailed({ why: refused.message });
+  const empty = { shown: null, own: null, failing: [] };
+  const up = { shown: said, own: said, failing: ["caseRuns"] };
 
   it("says a refusal, with the gateway's words", () => {
-    expect(afterRefresh(null, null, refused, words)).toEqual({ shown: said, own: said });
+    expect(afterRefresh(empty, "caseRuns", refused, words)).toEqual(up);
   });
   it("leaves a gateway that can't be reached to the connection check", () => {
-    expect(afterRefresh(null, null, new Unreachable("sūveryn can't be reached."), words)).toEqual({ shown: null, own: null });
+    expect(afterRefresh(empty, "runs", new Unreachable("sūveryn can't be reached."), words)).toEqual(empty);
   });
-  it("says it once: a failure again, or another, leaves the line as it stands", () => {
-    expect(afterRefresh(said, said, new Error("Something went wrong (7F3K-92QD)."), words)).toEqual({ shown: said, own: said });
-    expect(afterRefresh("The case couldn't be pinned.", null, refused, words)).toEqual({ shown: "The case couldn't be pinned.", own: null });
+  it("says it once: the same failure again, or another, leaves the line as it stands", () => {
+    expect(afterRefresh(up, "caseRuns", refused, words)).toEqual(up);
+    expect(afterRefresh(up, "documents", new Error("Something went wrong (7F3K-92QD)."), words))
+      .toEqual({ ...up, failing: ["caseRuns", "documents"] });
+    const other = { shown: "The case couldn't be pinned.", own: null, failing: [] };
+    expect(afterRefresh(other, "runs", refused, words)).toEqual({ ...other, failing: ["runs"] });
   });
-  it("goes away when a refresh works again, and only its own line", () => {
-    expect(afterRefresh(said, said, null, words)).toEqual({ shown: null, own: null });
-    expect(afterRefresh("The case couldn't be pinned.", said, null, words)).toEqual({ shown: "The case couldn't be pinned.", own: said });
+  it("stays while the refresh that failed still fails, though others work (never flickers)", () => {
+    expect(afterRefresh(up, "runs", null, words)).toEqual(up);
+  });
+  it("goes when every refresh that failed works again, and only its own line", () => {
+    expect(afterRefresh(up, "caseRuns", null, words)).toEqual(empty);
+    const both = { ...up, failing: ["caseRuns", "documents"] };
+    expect(afterRefresh(afterRefresh(both, "caseRuns", null, words), "documents", null, words)).toEqual(empty);
+    const other = { shown: "The case couldn't be pinned.", own: said, failing: ["caseRuns"] };
+    expect(afterRefresh(other, "caseRuns", null, words)).toEqual({ ...other, failing: [] });
   });
 });
-

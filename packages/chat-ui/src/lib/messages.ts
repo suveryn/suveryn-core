@@ -81,17 +81,26 @@ export function problemOf(status: number, body: unknown): Message {
   return b && typeof b === "object" && typeof b.code === "string" ? { kind: b.kind, code: b.code, params: b.params ?? {} } : generalMessage(status);
 }
 
-/**
- * The line above the conversation after a refresh the screen made by itself (suveryn-tracker#272). `shown` is what
- * the line says now, `own` what a refresh put there. A refresh that failed: the gateway's words, said once (a line
- * already standing stays); one that can't reach the gateway leaves the line to the connection check. A refresh that
- * worked takes the line away again, only while it is still the refresh's own.
- */
-export function afterRefresh(shown: string | null, own: string | null, failure: Error | null,
-                             words: { refreshFailed: (v: { why: string }) => string }): { shown: string | null; own: string | null } {
-  if (failure === null) return shown !== null && shown === own ? { shown: null, own: null } : { shown, own };
-  if (failure instanceof Unreachable || shown !== null) return { shown, own };
-  const line = words.refreshFailed({ why: failure.message });
-  return { shown: line, own: line };
-}
+/** The line above the conversation, and which refreshes the screen makes by itself are failing now (by name). */
+export type RefreshLine = { shown: string | null; own: string | null; failing: string[] };
 
+/**
+ * The line after the refresh `name` (suveryn-tracker#272). `shown` is what the line says, `own` what a refresh put
+ * there. A refresh that failed: the gateway's words, said once (a line already standing stays); one that can't reach
+ * the gateway leaves the line to the connection check. A refresh that works again takes the line away once no
+ * refresh is failing any more, and only while the line is still the refreshes' own: a failure that goes on keeps
+ * the line up, steadily.
+ */
+export function afterRefresh(line: RefreshLine, name: string, failure: Error | null,
+                             words: { refreshFailed: (v: { why: string }) => string }): RefreshLine {
+  if (failure instanceof Unreachable) return line;
+  if (failure === null) {
+    const failing = line.failing.filter((n) => n !== name);
+    return failing.length === 0 && line.shown !== null && line.shown === line.own
+      ? { shown: null, own: null, failing } : { ...line, failing };
+  }
+  const failing = line.failing.includes(name) ? line.failing : [...line.failing, name];
+  if (line.shown !== null) return { ...line, failing };
+  const said = words.refreshFailed({ why: failure.message });
+  return { shown: said, own: said, failing };
+}
