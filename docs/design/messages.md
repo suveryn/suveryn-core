@@ -164,10 +164,10 @@ files the gateway reads (suveryn-tracker#154). They keep no list of their own: t
   page's own sentence: the server never says it.
 - **A run that failed stores why as a message** (#153): `failure`, `{kind, code, params}`, kept as its code and
   parameters (rule 6). By what the person can do: `model.unavailable`, `document.unavailable` and
-  `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
+  `system.database_unavailable` and `run.interrupted` (a part was down: try again), `run.no_document`, `run.answer_unreadable` and `run.too_many`
   (nothing could be read), `system.internal` with a reference (nobody planned for it). `run.interrupted` is only
-  for a reading a restart or the sweep ended: one that fails unplanned while it starts, reads or goes on fails at
-  once as `system.internal` (#259, #275).
+  for a reading a restart or the sweep ended: one that fails while it starts, reads or goes on fails at once, with
+  the code of the part that is down, else as `system.internal` (#259, #275).
 - **One code for one situation.** The model that can't be reached is `model.unavailable` wherever it is met:
   asking, a stream, a playbook's reading, an answer given in words. It answers 503 everywhere. A model that answers
   with something that can't be read isn't down: that is an unplanned failure, `system.internal` with a reference.
