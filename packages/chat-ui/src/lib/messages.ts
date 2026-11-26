@@ -11,6 +11,7 @@
  * words its own (the `network` and `bundle` areas, #160), in suveryn-appliance.
  */
 import registry from "../../../harness/src/suveryn_harness/messages.json";
+import { Unreachable } from "./gateway";
 
 export type MessageCode = keyof typeof registry.codes;
 export type MessageArea = (typeof registry.areas)[number];
@@ -79,3 +80,18 @@ export function problemOf(status: number, body: unknown): Message {
   const b = body as Message | null;
   return b && typeof b === "object" && typeof b.code === "string" ? { kind: b.kind, code: b.code, params: b.params ?? {} } : generalMessage(status);
 }
+
+/**
+ * The line above the conversation after a refresh the screen made by itself (suveryn-tracker#272). `shown` is what
+ * the line says now, `own` what a refresh put there. A refresh that failed: the gateway's words, said once (a line
+ * already standing stays); one that can't reach the gateway leaves the line to the connection check. A refresh that
+ * worked takes the line away again, only while it is still the refresh's own.
+ */
+export function afterRefresh(shown: string | null, own: string | null, failure: Error | null,
+                             words: { refreshFailed: (v: { why: string }) => string }): { shown: string | null; own: string | null } {
+  if (failure === null) return shown !== null && shown === own ? { shown: null, own: null } : { shown, own };
+  if (failure instanceof Unreachable || shown !== null) return { shown, own };
+  const line = words.refreshFailed({ why: failure.message });
+  return { shown: line, own: line };
+}
+

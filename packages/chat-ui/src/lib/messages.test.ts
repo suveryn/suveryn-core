@@ -6,7 +6,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TABLES_FOR_TESTS } from "../i18n";
-import { generalMessage, messageText, problemOf } from "./messages";
+import { Unreachable } from "./gateway";
+import { afterRefresh, generalMessage, messageText, problemOf } from "./messages";
 
 const REGISTRY: { areas: string[]; codes: Record<string, { kind: string; params?: Record<string, { type: string }> }> } = JSON.parse(readFileSync(
   new URL("../../../harness/src/suveryn_harness/messages.json", import.meta.url), "utf8"));
@@ -67,9 +68,10 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
   });
 });
 
-// suveryn-tracker#272: a refresh the screen makes by itself never fails in silence. `.catch(() => {})`,
-// `.catch(() => undefined)` and a catch that trusts the connection check to explain a refusal are refused; a refresh
-// ends in App's `refreshFailed`, or in its dialog's own error line.
+// suveryn-tracker#272: a refresh the screen makes by itself never fails in silence. This refuses `.catch(() => {})`,
+// `.catch(() => undefined)` and a catch whose comment trusts the connection check to explain a refusal; a refresh
+// ends in Chat's `refreshFailed`, or in its dialog's own error line. Other empty catches (browser storage, a retry
+// asked again next round) are not refused.
 const SILENT = /\.catch\(\s*\(\)\s*=>\s*(\{\s*\}|undefined)\s*\)|catch\s*\{\s*\/\*[^*]*health check explains/;
 const SRC = new URL("..", import.meta.url).pathname;
 const sources = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
@@ -86,3 +88,25 @@ describe("a failure", () => {
     expect(silent, "say it: App's refreshFailed, or the dialog's own error line").toEqual([]);
   });
 });
+
+describe("the line after a refresh", () => {
+  const words = { refreshFailed: ({ why }: { why: string }) => `The screen couldn't be brought up to date. ${why}` };
+  const refused = new Error("You can't see this case.");
+  const said = words.refreshFailed({ why: refused.message });
+
+  it("says a refusal, with the gateway's words", () => {
+    expect(afterRefresh(null, null, refused, words)).toEqual({ shown: said, own: said });
+  });
+  it("leaves a gateway that can't be reached to the connection check", () => {
+    expect(afterRefresh(null, null, new Unreachable("sūveryn can't be reached."), words)).toEqual({ shown: null, own: null });
+  });
+  it("says it once: a failure again, or another, leaves the line as it stands", () => {
+    expect(afterRefresh(said, said, new Error("Something went wrong (7F3K-92QD)."), words)).toEqual({ shown: said, own: said });
+    expect(afterRefresh("The case couldn't be pinned.", null, refused, words)).toEqual({ shown: "The case couldn't be pinned.", own: null });
+  });
+  it("goes away when a refresh works again, and only its own line", () => {
+    expect(afterRefresh(said, said, null, words)).toEqual({ shown: null, own: null });
+    expect(afterRefresh("The case couldn't be pinned.", said, null, words)).toEqual({ shown: "The case couldn't be pinned.", own: said });
+  });
+});
+

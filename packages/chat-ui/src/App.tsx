@@ -81,6 +81,8 @@ import { choosable, pickMeta, stillThere } from "./lib/askAbout";
 import type { ConversationAction } from "./lib/conversationActions";
 import { watermark, WatermarkContext } from "./lib/watermark";
 import { thinkingDefault } from "./lib/thinking";
+import { Unreachable } from "./lib/gateway";
+import { afterRefresh } from "./lib/messages";
 
 const TAGLINE = "AI for work that can't leave the premises"; // English in every language, as on the website
 const SIDEBAR_KEY = "suveryn.sidebar";  // "collapsed" when the rail is chosen (this browser only)
@@ -197,11 +199,14 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const [problem, setProblem] = useState<string | null>(null);
   // A refresh the screen makes by itself (a list read again, the running playbooks every 15 s) that failed
   // (suveryn-tracker#272): the connection check when the gateway can't be reached, else its words in the line
-  // above the conversation, said once; what the screen shows stays.
-  const refreshFailed = (e: unknown) => {
-    if (e instanceof TypeError) setChecks((c) => c + 1);
-    else setProblem((shown) => shown ?? t().refreshFailed({ why: (e as Error).message }));
+  // above the conversation, said once; what the screen shows stays. The running playbooks read again take the
+  // line away (lib/messages.ts, afterRefresh).
+  const refreshLine = useRef<string | null>(null);
+  const refreshed = (failure: Error | null) => {
+    if (failure instanceof Unreachable) setChecks((c) => c + 1);
+    setProblem((shown) => { const line = afterRefresh(shown, refreshLine.current, failure, t()); refreshLine.current = line.own; return line.shown; });
   };
+  const refreshFailed = (e: unknown) => refreshed(e instanceof Error ? e : new Error(String(e)));
   // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
   useEffect(() => {
     const again = () => { getMe().then((user) => { if (user) onMe(user); }).catch(refreshFailed); };
@@ -344,7 +349,8 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
       // The model list once a minute, not with every health check (VM regression e0f2e26, question 6); at once
       // when the server comes back or the list is still empty.
       if (h !== null && (Date.now() - modelsReadAt.current > MODELS_EVERY || !reachableRef.current)) {
-        try { const m = await listModels(); if (alive) { setModels(m); modelsReadAt.current = Date.now(); } } catch (e) { refreshFailed(e); }
+        modelsReadAt.current = Date.now();  // tried: a failure waits for the next minute, never asks again at once
+        try { const m = await listModels(); if (alive) setModels(m); } catch (e) { refreshFailed(e); }
       }
       reachableRef.current = h !== null;
     })();
@@ -426,7 +432,7 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
     if (view === "admin") return;
     let stopped = false;
     const load = () => {
-      activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(refreshFailed);
+      activeRuns_().then((r) => { if (!stopped) { setActiveRuns(r); refreshed(null); } }).catch(refreshFailed);
       if (caseId) caseRuns(caseId).then((r) => { if (!stopped) setRunsHere(r); }).catch(refreshFailed);
       else setRunsHere([]);
     };

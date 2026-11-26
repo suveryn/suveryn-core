@@ -87,8 +87,9 @@ proxy's 502) gets its status's general code, from the registry's `general`.
 A refresh the screen makes by itself (a list read again, the running playbooks every 15 s) never fails in silence
 (suveryn-tracker#272). When the gateway can't be reached, the connection check speaks. When it refused or failed,
 the line above the conversation says so once ("The screen couldn't be brought up to date. …" with the gateway's
-words and reference), and what the screen shows stays. A dialog says it in its own error line. `messages.test.ts`
-fails on an empty catch.
+words and reference), and what the screen shows stays; the running playbooks read again take the line away
+(`afterRefresh` in `lib/messages.ts`). A dialog says it in its own error line. `messages.test.ts` refuses
+`.catch(() => {})` and `.catch(() => undefined)`.
 
 ## The appliance's web setup
 
