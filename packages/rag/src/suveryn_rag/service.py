@@ -94,13 +94,14 @@ JOB_RETENTION_S = 3600  # finished jobs (and their file names) are forgotten aft
 
 
 # What an upload may be (formats.py); said when anything else is uploaded.
-ACCEPTED = ("PDF, Word (.docx), Excel (.xlsx), Markdown (.md), CSV, TSV, text (.txt), JSON, XML and HTML files, "
-            "emails (.eml), or a .zip of them")
+ACCEPTED = ("PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument (.odt, .ods, .odp), Markdown (.md), "
+            "CSV, TSV, text (.txt), JSON, XML and HTML files, emails (.eml), or a .zip of them")
 # An archive: at most this many entries listed, and this much unpacked in all (each entry is also held
 # to MAX_UPLOAD_BYTES). Its documents count against the queue limits like separate uploads.
 MAX_ARCHIVE_ENTRIES = 1000
 MAX_ARCHIVE_UNPACKED = 300 * 1024 * 1024
-LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "md": "Markdown", "csv": "CSV", "tsv": "TSV", "txt": "text",
+LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "pptx": "PowerPoint", "odt": "OpenDocument text",
+          "ods": "OpenDocument spreadsheet", "odp": "OpenDocument presentation", "md": "Markdown", "csv": "CSV", "tsv": "TSV", "txt": "text",
           "json": "JSON", "xml": "XML", "html": "HTML", "eml": "email"}
 
 

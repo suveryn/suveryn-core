@@ -1,6 +1,7 @@
-"""Uploads read directly (suveryn_rag.formats): Word, Excel, Markdown, CSV and TSV, text, JSON, XML, HTML and an
-email's message: passages with their section, cells or path, nothing left out, and sūveryn's export mark found
+"""Uploads read directly (suveryn_rag.formats): Word, Excel, PowerPoint, OpenDocument, Markdown, CSV and TSV, text,
+JSON, XML, HTML and an email's message: passages with their section, cells, path or slide, nothing left out, and sūveryn's export mark found
 wherever the export puts it. Fictional documents only."""
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -36,7 +37,8 @@ def test_kinds_by_extension():
         ["pdf", "docx", "xlsx", "md", "md", "csv"]
     assert [kind_of(n) for n in ("a.TXT", "b.tsv", "c.json", "d.xml", "e.html", "f.htm", "g.eml")] == \
         ["txt", "tsv", "json", "xml", "html", "html", "eml"]
-    assert [kind_of(n) for n in ("a.doc", "b.xls", "c.xlsm", "d.rtf", "noextension")] == [None] * 5
+    assert [kind_of(n) for n in ("a.pptx", "b.ODT", "c.ods", "d.odp")] == ["pptx", "odt", "ods", "odp"]
+    assert [kind_of(n) for n in ("a.doc", "b.xls", "c.xlsm", "d.rtf", "e.ppt", "f.pptm", "noextension")] == [None] * 7
 
 
 def test_cell_references_are_written_as_excel_writes_them():
@@ -513,3 +515,222 @@ def test_json_and_xml_with_too_many_values_are_refused(tmp_path, monkeypatch):
         with pytest.raises(Unreadable) as e:
             read(write(tmp_path, name, data), kind, LIMIT)
         assert e.value.code == "document.too_large", name
+
+
+# ---------------------------------------------------------------------- OpenDocument and PowerPoint (suveryn-tracker#271)
+# fixtures/deed.odt, prices.ods and deck.odp are LibreOffice 24.2's own conversions of a fictional Word file, workbook
+# and deck (python-docx, openpyxl, python-pptx); fixtures/deck.pptx is that deck.
+def test_an_opendocument_text_is_read_by_section_as_word_is():
+    reading = read(FIXTURES / "deed.odt", "odt", LIMIT)
+    assert texts(reading) == [
+        (["Article 1"], "The price is EUR 300 000.", None),
+        (["Article 1", "Parties"], "| Name | Role |\n| Lotte Verbeke | seller |", None),
+        (["Article 2"], "Signed at the office.", None)]
+    assert reading.furniture == ["Footer: Office Testdorp"]  # a footer: checked for the mark, not stored
+
+
+def test_an_opendocument_spreadsheet_is_read_as_the_same_workbook_in_excel(tmp_path):
+    import openpyxl as xl
+    wb = xl.Workbook()
+    ws = wb.active
+    ws.title = "Prices"
+    for row in (["Item", "Amount", "Date", "Paid"], ["chair", 100.5, datetime(2026, 10, 19), True],  # noqa: DTZ001
+                ["table", 200, datetime(2026, 11, 1), False]):  # noqa: DTZ001
+        ws.append(row)
+    ws["A10"] = "far"
+    wb.create_sheet("Price list")["B2"] = "x"
+    wb.save(tmp_path / "prices.xlsx")
+    assert texts(read(FIXTURES / "prices.ods", "ods", LIMIT)) == texts(read(tmp_path / "prices.xlsx", "xlsx", LIMIT)) == [
+        ([], "| Item | Amount | Date | Paid |\n| chair | 100.5 | 2026-10-19 | TRUE |\n| table | 200 | 2026-11-01 | FALSE |\n| far |",
+         "Prices!A1:D10"),
+        ([], "|  | x |", "'Price list'!A2:B2")]
+
+
+@pytest.mark.parametrize("name, kind", [("deck.pptx", "pptx"), ("deck.odp", "odp")])
+def test_a_deck_is_read_slide_by_slide_each_numbered_as_a_page(name, kind):
+    reading = read(FIXTURES / name, kind, LIMIT)
+    assert reading.pages == 3  # the third slide is empty: counted, nothing to read on it
+    assert [(p.headings, p.text, p.page) for p in reading.passages] == [
+        (["Deed intake"], "First point\nSecond point\n\nSay this aloud.", 1),  # the speaker notes after the slide's text
+        (["Parties"], "In a group", 2),  # text in a group of shapes
+        (["Parties"], "| Name | Role |\n| Lotte | seller |", 2)]
+
+
+def odf(tmp_path: Path, kind: str, content: str, mimetype: str | None = None, manifest: str = "") -> Path:
+    path = tmp_path / f"x.{kind}"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("mimetype", mimetype or formats.ODF_TYPES[kind])
+        z.writestr("content.xml", content)
+        if manifest:
+            z.writestr("META-INF/manifest.xml", manifest)
+    return path
+
+
+NS = ('xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+      'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"')
+
+
+def test_an_opendocument_texts_spaces_notes_comments_and_deletions_are_read_as_it_reads(tmp_path):
+    content = (f'<office:document-content {NS}><office:body><office:text>'
+               '<text:tracked-changes><text:changed-region><text:deletion><text:p>deleted words</text:p></text:deletion>'
+               '</text:changed-region></text:tracked-changes>'
+               '<text:h text:outline-level="2">Price</text:h>'
+               '<text:p>EUR<text:s text:c="2"/>300<text:tab/>000<text:note><text:note-citation>1</text:note-citation>'
+               '<text:note-body><text:p>Before costs.</text:p></text:note-body></text:note>.'
+               '<office:annotation><text:p>Check this</text:p></office:annotation></text:p>'
+               '<text:list><text:list-item><text:p>One</text:p></text:list-item><text:list-item><text:p>Two</text:p></text:list-item></text:list>'
+               '</office:text></office:body></office:document-content>')
+    reading = read(odf(tmp_path, "odt", content), "odt", LIMIT)
+    assert texts(reading) == [(["Price"], "EUR  300\t000.\n\nBefore costs.\n\nOne\n\nTwo", None)]
+    assert reading.furniture == ["Check this"]
+
+
+def test_a_spreadsheets_million_empty_rows_and_repeated_cells_are_counted_not_written_out(tmp_path, monkeypatch):
+    rows = ('<table:table-row table:number-rows-repeated="1048570"><table:table-cell table:number-columns-repeated="1024"/></table:table-row>'
+            '<table:table-row><table:table-cell table:number-columns-repeated="3"/><table:table-cell office:value-type="float" '
+            'office:value="2.0"><text:p>2,00</text:p></table:table-cell><table:table-cell table:number-columns-repeated="16000"/></table:table-row>')
+    content = f'<office:document-content {NS}><office:body><office:spreadsheet><table:table table:name="S">{rows}</table:table></office:spreadsheet></office:body></office:document-content>'
+    assert texts(read(odf(tmp_path, "ods", content), "ods", LIMIT)) == [([], "|  |  |  | 2 |", "S!A1048571:D1048571")]
+    monkeypatch.setattr(formats, "MAX_CELLS", 10)
+    many = (f'<office:document-content {NS}><office:body><office:spreadsheet><table:table table:name="S">'
+            '<table:table-row table:number-rows-repeated="1000000"><table:table-cell table:number-columns-repeated="16384" '
+            'office:value-type="string"><text:p>x</text:p></table:table-cell></table:table-row></table:table></office:spreadsheet>'
+            '</office:body></office:document-content>')  # a few hundred bytes for 16 billion cells
+    with pytest.raises(Unreadable) as e:
+        read(odf(tmp_path, "ods", many), "ods", LIMIT)
+    assert e.value.code == "document.too_large"
+    wide = content.replace('table:number-columns-repeated="16000"', 'table:number-columns-repeated="999999999"')
+    assert texts(read(odf(tmp_path, "ods", wide), "ods", LIMIT))[0][2] == "S!A1048571:D1048571"  # an empty run costs nothing
+
+
+@pytest.mark.parametrize("mimetype, manifest, code", [
+    ("application/vnd.oasis.opendocument.spreadsheet", "", "document.damaged"),  # an .ods named .odt
+    (None, '<manifest:manifest><manifest:file-entry><manifest:encryption-data/></manifest:file-entry></manifest:manifest>',
+     "document.password_protected"),
+])
+def test_an_opendocument_that_isnt_what_it_says_or_is_encrypted_is_refused(tmp_path, mimetype, manifest, code):
+    with pytest.raises(Unreadable) as e:
+        read(odf(tmp_path, "odt", f"<office:document-content {NS}/>", mimetype, manifest), "odt", LIMIT)
+    assert e.value.code == code
+
+
+def test_opendocument_xml_with_entities_is_never_expanded(tmp_path):
+    content = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><x>&a;</x>'
+    with pytest.raises(Unreadable) as e:
+        read(odf(tmp_path, "odt", content), "odt", LIMIT)
+    assert e.value.code == "document.unreadable"
+
+
+def test_tables_across_an_opendocument_text_share_one_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(formats, "MAX_CELLS", 100)
+    table = '<table:table><table:table-row table:number-rows-repeated="60"><table:table-cell><text:p>x</text:p></table:table-cell></table:table-row></table:table>'
+    content = f'<office:document-content {NS}><office:body><office:text>{table * 2}</office:text></office:body></office:document-content>'
+    with pytest.raises(Unreadable) as e:  # 60 cells each, 120 together
+        read(odf(tmp_path, "odt", content), "odt", LIMIT)
+    assert e.value.code == "document.too_large"
+
+
+DRAW = 'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"'
+
+
+def test_text_boxes_inside_text_boxes_are_read_once_and_quickly(tmp_path):
+    """suveryn-tracker#271's review: 24 nested boxes in 591 bytes took 84 s and 4 GB, the innermost read 2^23 times."""
+    inner = "<text:p>Innermost.</text:p>"
+    for _ in range(24):
+        inner = f"<text:p>Box<draw:frame><draw:text-box>{inner}</draw:text-box></draw:frame></text:p>"
+    content = f'<office:document-content {NS} {DRAW}><office:body><office:text>{inner}</office:text></office:body></office:document-content>'
+    reading = read(odf(tmp_path, "odt", content), "odt", LIMIT)
+    text = "\n".join(p.text for p in reading.passages)
+    assert text.count("Innermost.") == 1 and text.count("Box") == 24
+
+
+def test_a_drawing_anchored_in_a_paragraph_is_read_after_it(tmp_path):
+    content = (f'<office:document-content {NS} {DRAW}><office:body><office:text><text:p>The plan.<draw:custom-shape>'
+               '<text:p>Fictional price EUR 123.456</text:p></draw:custom-shape></text:p></office:text></office:body></office:document-content>')
+    assert texts(read(odf(tmp_path, "odt", content), "odt", LIMIT)) == [([], "The plan.\n\nFictional price EUR 123.456", None)]
+
+
+def test_a_merged_cell_keeps_the_columns_where_they_are(tmp_path):
+    """As LibreOffice writes a merged A1:B1: the cell it covers stays a column."""
+    rows = ('<table:table-row><table:table-cell table:number-columns-spanned="2"><text:p>Item and kind</text:p></table:table-cell>'
+            '<table:covered-table-cell/><table:table-cell><text:p>Amount</text:p></table:table-cell></table:table-row>'
+            '<table:table-row><table:table-cell><text:p>Total</text:p></table:table-cell><table:table-cell/>'
+            '<table:table-cell office:value-type="float" office:value="350"><text:p>350</text:p></table:table-cell></table:table-row>')
+    for kind, body in [("ods", "spreadsheet"), ("odt", "text")]:
+        content = f'<office:document-content {NS}><office:body><office:{body}><table:table table:name="S">{rows}</table:table></office:{body}></office:body></office:document-content>'
+        reading = read(odf(tmp_path, kind, content), kind, LIMIT)
+        assert reading.passages[0].text == "| Item and kind |  | Amount |\n| Total |  | 350 |", kind
+
+
+def test_comments_on_cells_and_slides_are_furniture_not_text(tmp_path):
+    cell = ('<table:table-cell><text:p>Price</text:p><office:annotation><text:p>Check with Jan</text:p></office:annotation></table:table-cell>'
+            '<table:table-cell><office:annotation><text:p>Only a comment</text:p></office:annotation></table:table-cell>')
+    content = f'<office:document-content {NS}><office:body><office:spreadsheet><table:table table:name="S"><table:table-row>{cell}</table:table-row></table:table></office:spreadsheet></office:body></office:document-content>'
+    reading = read(odf(tmp_path, "ods", content), "ods", LIMIT)
+    assert texts(reading) == [([], "| Price |", "S!A1:A1")] and reading.furniture == ["Check with Jan", "Only a comment"]
+    slide = (f'<office:document-content {NS} {DRAW} xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" '
+             'xmlns:officeooo="http://openoffice.org/2009/office"><office:body><office:presentation><draw:page>'
+             '<draw:frame presentation:class="outline"><draw:text-box><text:p>Point</text:p></draw:text-box></draw:frame>'
+             '<officeooo:annotation><text:p>A reviewer\'s remark</text:p></officeooo:annotation></draw:page>'
+             '</office:presentation></office:body></office:document-content>')
+    reading = read(odf(tmp_path, "odp", slide), "odp", LIMIT)
+    assert [(p.text, p.page) for p in reading.passages] == [("Point", 1)] and reading.furniture == ["A reviewer's remark"]
+
+
+def test_odd_numbers_in_an_opendocument_are_read_past_not_refused(tmp_path):
+    content = (f'<office:document-content {NS}><office:body><office:text><text:h text:outline-level="one">Price</text:h>'
+               '<text:p>A<text:s text:c="two"/>B</text:p></office:text></office:body></office:document-content>')
+    assert texts(read(odf(tmp_path, "odt", content), "odt", LIMIT)) == [(["Price"], "A B", None)]
+
+
+def test_an_opendocument_title_is_the_heading_above_the_rest(tmp_path):
+    content = (f'<office:document-content {NS} xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"><office:automatic-styles>'
+               '<style:style style:name="P1" style:parent-style-name="Title"/></office:automatic-styles><office:body><office:text>'
+               '<text:p text:style-name="P1">Deed of sale</text:p><text:h text:outline-level="1">Price</text:h><text:p>EUR 300.</text:p>'
+               '</office:text></office:body></office:document-content>')
+    assert texts(read(odf(tmp_path, "odt", content), "odt", LIMIT)) == [(["Deed of sale", "Price"], "EUR 300.", None)]
+
+
+@pytest.mark.parametrize("kind", ["docx", "xlsx", "pptx"])
+def test_an_office_file_protected_with_a_password_is_refused_as_such(tmp_path, kind):
+    """fixtures/protected.docx: a fictional note encrypted by msoffcrypto-tool (MS-OFFCRYPTO, as Office does);
+    fixtures/old.doc: LibreOffice's .doc of it, unencrypted. Both are compound files, not zips."""
+    protected, old = (FIXTURES / "protected.docx").read_bytes(), (FIXTURES / "old.doc").read_bytes()
+    assert formats.looks_like(kind, protected[:8])
+    for data, code in [(protected, "document.password_protected"), (old, "document.damaged")]:  # a .doc renamed
+        with pytest.raises(Unreadable) as e:
+            read(write(tmp_path, f"x.{kind}", data), kind, LIMIT)
+        assert e.value.code == code
+
+
+def test_a_table_in_a_cell_and_a_footnote_in_a_cell_are_read_with_the_cell(tmp_path):
+    inner = '<table:table><table:table-row><table:table-cell><text:p>Inner value</text:p></table:table-cell></table:table-row></table:table>'
+    cell = (f'<table:table-cell><text:p>Outer</text:p>{inner}</table:table-cell>'
+            '<table:table-cell><text:p>Price<text:note><text:note-body><text:p>Before costs.</text:p></text:note-body></text:note></text:p></table:table-cell>')
+    content = (f'<office:document-content {NS}><office:body><office:text><table:table><table:table-row>{cell}</table:table-row>'
+               '</table:table></office:text></office:body></office:document-content>')
+    assert texts(read(odf(tmp_path, "odt", content), "odt", LIMIT)) == [([], "| Outer Inner value | Price Before costs. |", None)]
+
+
+def test_a_decks_slides_are_stored_as_its_chunks_pages():
+    pytest.importorskip("psycopg")
+    from suveryn_rag.extract import Extraction
+    from suveryn_rag.pipeline import Rag
+    from suveryn_rag.store import Original
+
+    class Store:
+        def add_document(self, name, digest, pages, ocr_pages, chunks, vectors, warnings, owner, case_id, **kw):
+            self.stored = (pages, [(c.page_start, c.page_end, c.headings) for c in chunks])
+            return "doc"
+
+        def document_status(self, doc_id):
+            return "ok", []
+
+    rag = Rag.__new__(Rag)
+    rag.store = Store()
+    rag._embed_passages = lambda chunks, timings, t: [[0.0]] * len(chunks)
+    reading = read(FIXTURES / "deck.pptx", "pptx", LIMIT)
+    ex = Extraction(document=None, pages=reading.pages, ocr_pages=0, mixed_pages=0, passages=reading.passages, furniture=[])
+    result = rag._store_passages(ex, None, "deck.pptx", "digest", "user-a", None, Original("x", b""))
+    assert result.pages == 3
+    assert rag.store.stored == (3, [(1, 1, ["Deed intake"]), (2, 2, ["Parties"]), (2, 2, ["Parties"])])

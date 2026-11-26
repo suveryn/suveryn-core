@@ -40,9 +40,15 @@ def test_a_spreadsheet_comes_back_as_passages_with_their_cells(reader):
     assert ex.furniture == ["a footer"]
 
 
-def test_malformed_passages_are_refused_and_the_reader_replaced(reader):
+def test_a_decks_slides_come_back_numbered_as_pages(reader):
+    ex = reader.extract(Path("deck.pptx"))
+    assert ex.pages == 2 and [(p.text, p.headings, p.page) for p in ex.passages] == [("First point", ["Intake"], 1), ("Second", [], 2)]
+
+
+@pytest.mark.parametrize("name", ["bad.xlsx", "bad.pptx"])
+def test_malformed_passages_are_refused_and_the_reader_replaced(reader, name):
     with pytest.raises(ExtractionFailed, match="invalid answer"):
-        reader.extract(Path("bad.xlsx"))
+        reader.extract(Path(name))
     assert reader.extract(Path("next.pdf")).pages == 1
 
 

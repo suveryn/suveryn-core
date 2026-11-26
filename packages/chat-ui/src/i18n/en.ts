@@ -61,7 +61,7 @@ const en = {
     "request.too_large": "What was sent is larger than the server accepts.",
     "request.unsupported": "This type of file isn't accepted.",
     "request.too_many": m("{seconds, plural, one {Too many requests. Try again in # second.} other {Too many requests. Try again in # seconds.}}", "seconds"),
-    "upload.unsupported": "This file type isn't read: use PDF, Word, Excel, Markdown, text or data (TXT, CSV, TSV, JSON, XML, HTML), an email (.eml) or a .zip.",
+    "upload.unsupported": "This file type isn't read: use PDF, Word, Excel, PowerPoint, OpenDocument, Markdown, text or data (TXT, CSV, TSV, JSON, XML, HTML), an email (.eml) or a .zip.",
     "upload.empty": "This file is empty.",
     "upload.content_mismatch": "This file's content doesn't match its type. It may be damaged or renamed.",
     "upload.too_large": m("The file is larger than {max_mb, number} MB.", "max_mb"),
@@ -375,7 +375,7 @@ const en = {
   deleteHistoryFailed: m("Your history couldn''t be deleted, so you are still signed in. {why}", "why"),
 
   // composer
-  attachDocument: "Add a document (PDF, Word, Excel, text, data, an email or a .zip)",
+  attachDocument: "Add a document (PDF, Word, Excel, PowerPoint, OpenDocument, text, data, an email or a .zip)",
   yourQuestion: "Your question",
   askPlaceholder: "Ask about your documents…",
   send: "Send message",
@@ -811,7 +811,7 @@ const en = {
   asManager: m("{name} (case manager)", "name"),
   askInCase: m("Ask about case {ref}…", "ref"),
   questionInCase: m("Your question about case {ref}", "ref"),
-  attachToCase: m("Add a document to case {ref} (PDF, Word, Excel, text, data, an email or a .zip)", "ref"),
+  attachToCase: m("Add a document to case {ref} (PDF, Word, Excel, PowerPoint, OpenDocument, text, data, an email or a .zip)", "ref"),
   caseOnlyDocuments: m("Answers come only from case {ref}.", "ref"),
   answerActions: "Answer actions",
   answerWithSources: "this answer with its sources",

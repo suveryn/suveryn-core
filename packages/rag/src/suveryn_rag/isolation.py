@@ -119,9 +119,11 @@ def _passages_from_json(data) -> list[Passage] | None:
         raise TypeError("expected a list of passages")
     out = []
     for p in data:
-        if not isinstance(p, dict) or not isinstance(p.get("text"), str) or not isinstance(p.get("place"), (str, type(None))):
+        page = p.get("page") if isinstance(p, dict) else None
+        if not isinstance(p, dict) or not isinstance(p.get("text"), str) or not isinstance(p.get("place"), (str, type(None))) \
+                or not (page is None or (type(page) is int and page > 0)):
             raise TypeError("malformed passage")
-        out.append(Passage(p["text"], _strings(p.get("headings", [])), p["place"]))
+        out.append(Passage(p["text"], _strings(p.get("headings", [])), p["place"], page))
     return out
 
 
@@ -308,7 +310,7 @@ def serve(extract: Callable[..., Extraction], requests: IO[bytes], answers: IO[b
             ex = extract(Path(json.loads(line)["file"]), watch=watch)
             doc = ex.document.export_to_dict() if hasattr(ex.document, "export_to_dict") else ex.document
             passages = None if ex.passages is None else [
-                {"text": p.text, "headings": p.headings, "place": p.place} for p in ex.passages]
+                {"text": p.text, "headings": p.headings, "place": p.place, "page": p.page} for p in ex.passages]
             send({"ok": True, "document": doc, "pages": ex.pages, "ocr_pages": ex.ocr_pages,
                   "mixed_pages": ex.mixed_pages, "page_texts": ex.page_texts, "timings": ex.timings,
                   "layout_failed_pages": ex.layout_failed_pages, "passages": passages, "furniture": ex.furniture})
