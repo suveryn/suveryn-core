@@ -734,3 +734,47 @@ def test_a_decks_slides_are_stored_as_its_chunks_pages():
     result = rag._store_passages(ex, None, "deck.pptx", "digest", "user-a", None, Original("x", b""))
     assert result.pages == 3
     assert rag.store.stored == (3, [(1, 1, ["Deed intake"]), (2, 2, ["Parties"]), (2, 2, ["Parties"])])
+
+
+@pytest.mark.parametrize("name, kind", [("deck-footer.pptx", "pptx"), ("deck-footer.odp", "odp")])
+def test_a_slides_footer_and_date_are_furniture(name, kind):
+    """fixtures/deck-footer.pptx: python-pptx, a slide with its layout's footer and date; .odp: LibreOffice's of it,
+    which declares the footer once for the deck (presentation:footer-decl)."""
+    reading = read(FIXTURES / name, kind, LIMIT)
+    assert [(p.text, p.page) for p in reading.passages] == [("Point", 1)]
+    assert {"Office Testdorp, confidential", "25 November 2026"} <= set(reading.furniture)
+
+
+@pytest.mark.parametrize("name, kind", [("prices.ods", "ods"), ("deck.odp", "odp"), ("deed.odt", "odt"), ("deck.pptx", "pptx")])
+def test_a_damaged_package_is_refused_as_damaged_not_as_a_crash(tmp_path, name, kind):
+    data = bytearray((FIXTURES / name).read_bytes())
+    with zipfile.ZipFile(FIXTURES / name) as z:  # the compressed bytes of the main part, garbled
+        info = z.getinfo({"ods": "content.xml", "odp": "content.xml", "odt": "content.xml", "pptx": "ppt/slides/slide1.xml"}[kind])
+    start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+    data[start + 10:start + 40] = b"\xff" * 30
+    with pytest.raises(Unreadable) as e:
+        read(write(tmp_path, name, bytes(data)), kind, LIMIT)
+    assert e.value.code == "document.damaged"
+
+
+@pytest.mark.parametrize("member", ["mimetype", "META-INF/manifest.xml"])
+def test_an_opendocument_with_a_damaged_small_part_is_damaged_too(tmp_path, member):
+    data = bytearray((FIXTURES / "deed.odt").read_bytes())
+    with zipfile.ZipFile(FIXTURES / "deed.odt") as z:
+        info = z.getinfo(member)
+    start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+    data[start:start + min(info.compress_size, 8)] = b"\xff" * min(info.compress_size, 8)
+    with pytest.raises(Unreadable) as e:
+        read(write(tmp_path, "x.odt", bytes(data)), "odt", LIMIT)
+    assert e.value.code == "document.damaged"
+
+
+def test_a_deck_that_lists_a_slide_it_doesnt_hold_is_damaged(tmp_path):
+    path = tmp_path / "x.pptx"
+    with zipfile.ZipFile(FIXTURES / "deck.pptx") as src, zipfile.ZipFile(path, "w") as out:
+        for info in src.infolist():
+            if info.filename != "ppt/slides/slide1.xml":
+                out.writestr(info, src.read(info))
+    with pytest.raises(Unreadable) as e:
+        read(path, "pptx", LIMIT)
+    assert e.value.code == "document.damaged"

@@ -68,7 +68,7 @@ from suveryn_harness import Citation
 from suveryn_harness.messages import Problem, message, unplanned
 
 from .config import RagSettings
-from .formats import MAX_EMAIL_PARTS, SUFFIX, email_parts, kind_of, looks_like, parse_email
+from .formats import MAX_EMAIL_PARTS, ODF_NAMES, SUFFIX, email_parts, kind_of, looks_like, parse_email
 from .reading import Cancelled, Progress, ReaderCrashed, Unreadable, Watch
 from .store import Scope
 from .naming import named_document
@@ -100,8 +100,7 @@ ACCEPTED = ("PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), OpenDocument 
 # to MAX_UPLOAD_BYTES). Its documents count against the queue limits like separate uploads.
 MAX_ARCHIVE_ENTRIES = 1000
 MAX_ARCHIVE_UNPACKED = 300 * 1024 * 1024
-LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "pptx": "PowerPoint", "odt": "OpenDocument text",
-          "ods": "OpenDocument spreadsheet", "odp": "OpenDocument presentation", "md": "Markdown", "csv": "CSV", "tsv": "TSV", "txt": "text",
+LABELS = {"pdf": "PDF", "docx": "Word", "xlsx": "Excel", "pptx": "PowerPoint", **ODF_NAMES, "md": "Markdown", "csv": "CSV", "tsv": "TSV", "txt": "text",
           "json": "JSON", "xml": "XML", "html": "HTML", "eml": "email"}
 
 

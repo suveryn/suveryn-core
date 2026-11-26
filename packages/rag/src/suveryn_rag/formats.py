@@ -46,6 +46,7 @@ import io
 import json
 import re
 import zipfile
+import zlib
 from email.message import EmailMessage
 from html.parser import HTMLParser
 from dataclasses import dataclass, field, replace
@@ -486,7 +487,11 @@ def read_pptx(path: Path, limit: int) -> Reading:
     passages: list[Passage] = []
     furniture: list[str] = []
     slides = 0
-    for number, slide in enumerate(deck.slides, 1):
+    try:
+        listed = list(deck.slides)
+    except KeyError:  # a slide the deck lists but doesn't hold
+        raise Unreadable("the file is not a valid PowerPoint file", "document.damaged") from None
+    for number, slide in enumerate(listed, 1):
         slides = number
         title_shape = slide.shapes.title
         title = " ".join(title_shape.text_frame.text.split()) if title_shape is not None and title_shape.has_text_frame else ""
@@ -539,15 +544,18 @@ def _odf_part(path: Path, kind: str, member: str):
 
     what = ODF_NAMES[kind]
     check_zip(path, "content.xml", what)
-    with zipfile.ZipFile(path) as z:
-        names = set(z.namelist())
-        if "mimetype" not in names or z.read("mimetype").strip() != ODF_TYPES[kind].encode():
-            raise Unreadable(f"the file is not a valid {what} file", "document.damaged")
-        if "META-INF/manifest.xml" in names and b"encryption-data" in z.read("META-INF/manifest.xml"):
-            raise Unreadable("the file is protected with a password", "document.password_protected")
-        if member not in names:
-            return None
-        data = z.read(member)
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = set(z.namelist())
+            if "mimetype" not in names or z.read("mimetype").strip() != ODF_TYPES[kind].encode():
+                raise Unreadable(f"the file is not a valid {what} file", "document.damaged")
+            if "META-INF/manifest.xml" in names and b"encryption-data" in z.read("META-INF/manifest.xml"):
+                raise Unreadable("the file is protected with a password", "document.password_protected")
+            if member not in names:
+                return None
+            data = z.read(member)
+    except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError):  # a damaged part, or an unknown compression
+        raise Unreadable(f"the file is not a valid {what} file", "document.damaged") from None
     try:
         return fromstring(data)
     except DefusedXmlException:
@@ -809,6 +817,9 @@ def read_odp(path: Path, limit: int) -> Reading:
         raise Unreadable(f"the file is not a valid {ODF_NAMES['odp']} file", "document.damaged")
     passages: list[Passage] = []
     furniture: list[str] = []
+    for decl in body:  # the footer, header and date texts the slides show, declared once (presentation:footer-decl)
+        if decl.tag in (f"{P}footer-decl", f"{P}header-decl", f"{P}date-time-decl") and (text := " ".join(_odf_text(decl).split())):
+            furniture.append(text)
     budget = Budget()
     slides = 0
     for number, page in enumerate(body.findall(f"{D}page"), 1):
