@@ -134,18 +134,11 @@ export default function App() {
     const timer = setInterval(reportClock, REPORT_EVERY_MS);
     return () => clearInterval(timer);
   }, [signedIn]);
-  // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
-  useEffect(() => {
-    const again = () => { getMe().then((user) => { if (user) setMe(user); }).catch(() => undefined); };
-    window.addEventListener(ME_CHANGED, again);
-    return () => window.removeEventListener(ME_CHANGED, again);
-  }, []);
-
   useT(); // re-render on a language change, so React Aria's numbers and dates follow it
   if (me === undefined) return null; // checking, or on the way to the login page
   return (
     <I18nProvider locale={locale()}>
-      {me === null ? <SignIn ended={ended} unavailable={unavailable} stuck={stuck} /> : <Chat me={me} />}
+      {me === null ? <SignIn ended={ended} unavailable={unavailable} stuck={stuck} /> : <Chat me={me} onMe={setMe} />}
     </I18nProvider>
   );
 }
@@ -171,7 +164,7 @@ function SignIn({ ended, unavailable, stuck }: { ended: boolean; unavailable: st
   );
 }
 
-function Chat({ me }: { me: Me }) {
+function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   const m = useT();
   const language = useLang();
   const caseTypes = useCaseTypes();  // the server's list (suveryn-tracker#229)
@@ -202,6 +195,19 @@ function Chat({ me }: { me: Me }) {
   const uploads = useRef(new Map<string, AbortController>());  // uploads still being sent, by card
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // A refresh the screen makes by itself (a list read again, the running playbooks every 15 s) that failed
+  // (suveryn-tracker#272): the connection check when the gateway can't be reached, else its words in the line
+  // above the conversation, said once; what the screen shows stays.
+  const refreshFailed = (e: unknown) => {
+    if (e instanceof TypeError) setChecks((c) => c + 1);
+    else setProblem((shown) => shown ?? t().refreshFailed({ why: (e as Error).message }));
+  };
+  // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
+  useEffect(() => {
+    const again = () => { getMe().then((user) => { if (user) onMe(user); }).catch(refreshFailed); };
+    window.addEventListener(ME_CHANGED, again);
+    return () => window.removeEventListener(ME_CHANGED, again);
+  }, []);
   const [conversationId, setConversationId] = useState(newConversationId);
   const conversationIdNow = useRef(conversationId);  // the open one, for what comes back after a wait
   conversationIdNow.current = conversationId;
@@ -262,7 +268,7 @@ function Chat({ me }: { me: Me }) {
   const names = useMemo(() => new Map([...Object.entries(departed), ...caseMembers.map((x) => [x.user, x.name || x.username] as [string, string])]),
                         [caseMembers, departed]);
   // The Documents overview names who added each document, a deleted account's too (round 2, finding 5).
-  useEffect(() => { if (view === "documents") departedNames().then(setDeparted).catch(() => {}); }, [view]);
+  useEffect(() => { if (view === "documents") departedNames().then(setDeparted).catch(refreshFailed); }, [view]);
   // The source open in the panel beside the conversation (docs/design/chat-ui.md §5): which answer, which source.
   const [source, setSource] = useState<(OpenSource & { turnId: string }) | null>(null);
   const caseId = currentCase?.id ?? null;
@@ -317,7 +323,7 @@ function Chat({ me }: { me: Me }) {
       const r = await listDocuments(caseId);
       setDocuments(r.documents);
       setJobs(r.jobs);
-    } catch { /* document handling unavailable; the health check explains why */ }
+    } catch (e) { refreshFailed(e); }
   }, [caseId]);
 
   // The server's health, every HEALTH_EVERY ms; *Try now* (the server-unreachable bar) checks at once.
@@ -338,7 +344,7 @@ function Chat({ me }: { me: Me }) {
       // The model list once a minute, not with every health check (VM regression e0f2e26, question 6); at once
       // when the server comes back or the list is still empty.
       if (h !== null && (Date.now() - modelsReadAt.current > MODELS_EVERY || !reachableRef.current)) {
-        try { const m = await listModels(); if (alive) { setModels(m); modelsReadAt.current = Date.now(); } } catch { /* the health check explains why */ }
+        try { const m = await listModels(); if (alive) { setModels(m); modelsReadAt.current = Date.now(); } } catch (e) { refreshFailed(e); }
       }
       reachableRef.current = h !== null;
     })();
@@ -361,15 +367,15 @@ function Chat({ me }: { me: Me }) {
   }, [caseId, documentsReady, administers, refreshDocuments]);
 
   const refreshConversations = useCallback(async () => {
-    try { setConversations(await listConversations(caseId)); } catch { /* the health check explains why */ }
-    try { setAllConversations(await listAllConversations()); } catch { /* same */ }
+    try { setConversations(await listConversations(caseId)); } catch (e) { refreshFailed(e); }
+    try { setAllConversations(await listAllConversations()); } catch (e) { refreshFailed(e); }
   }, [caseId]);
   useEffect(() => { if (historyReady && !administers) refreshConversations(); }, [historyReady, refreshConversations, administers]);
-  useEffect(() => { if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {}); }, [documentsReady, documents, caseId]);
+  useEffect(() => { if (documentsReady) listAllDocuments().then(setAllDocuments).catch(refreshFailed); }, [documentsReady, documents, caseId]);
 
   // Every case the user may see, open and closed: the sidebar's rows and its pinned cases.
   const refreshCases = useCallback(async () => {
-    try { setCases(await listCases(true)); } catch { /* the health check explains why */ }
+    try { setCases(await listCases(true)); } catch (e) { refreshFailed(e); }
   }, []);
   useEffect(() => { if (casesReady) refreshCases(); }, [casesReady, refreshCases]);
   // The overviews' cases, with their members and last activity: read again whenever one is opened
@@ -383,8 +389,8 @@ function Chat({ me }: { me: Me }) {
   // shared conversation or saved answer appears without reloading the page (Pod check of 5e9a539).
   useEffect(() => {
     if (!inOverview) return;
-    if (documentsReady) listAllDocuments().then(setAllDocuments).catch(() => {});
-    if (historyReady && !administers) listAllConversations().then(setAllConversations).catch(() => {});
+    if (documentsReady) listAllDocuments().then(setAllDocuments).catch(refreshFailed);
+    if (historyReady && !administers) listAllConversations().then(setAllConversations).catch(refreshFailed);
   }, [inOverview, view, documentsReady, historyReady, administers]);
 
   // Administrators: backups that need attention, a bar outside the Backups page (read again on returning
@@ -420,8 +426,8 @@ function Chat({ me }: { me: Me }) {
     if (view === "admin") return;
     let stopped = false;
     const load = () => {
-      activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(() => undefined);
-      if (caseId) caseRuns(caseId).then((r) => { if (!stopped) setRunsHere(r); }).catch(() => undefined);
+      activeRuns_().then((r) => { if (!stopped) setActiveRuns(r); }).catch(refreshFailed);
+      if (caseId) caseRuns(caseId).then((r) => { if (!stopped) setRunsHere(r); }).catch(refreshFailed);
       else setRunsHere([]);
     };
     load();
@@ -676,7 +682,7 @@ function Chat({ me }: { me: Me }) {
     } finally {
       setBusy(false);
       abort.current = null;
-      listModels().then(setModels).catch(() => {}); // which model is loaded may have changed
+      listModels().then(setModels).catch(refreshFailed); // which model is loaded may have changed
     }
     refreshConversations();  // a new conversation is listed, a known one moves up
     // stopped (or cut off) before the server said the answer's number: it is stored as the connection closes, and
@@ -899,15 +905,15 @@ function Chat({ me }: { me: Me }) {
     setJobs([]);
     setConversations([]);
     setCaseMembers([]);
-    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(() => {});
+    if (c && c.my_role !== null) getCase(c.id).then((fresh) => setCurrentCase((cur) => (cur?.id === fresh.id ? fresh : cur))).catch(refreshFailed);
     if (c && c.my_role !== null) loadMembers(c.id);
   };
   // A case's members, unless another case was opened meanwhile, and the names of deleted accounts,
   // so what they did in the case keeps its name. Fetched when a case opens, never in the body: there
   // it ran on every render, and each answer caused the next (round 2, finding 1).
   const loadMembers = (id: string) => {
-    listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(() => {});
-    departedNames().then(setDeparted).catch(() => {});
+    listMembers(id).then((ms) => { if (openCaseId.current === id) setCaseMembers(ms); }).catch(refreshFailed);
+    departedNames().then(setDeparted).catch(refreshFailed);
   };
   // Opening a case or the personal space: a new chat there.
   const openCase = (c: Case | null) => {
@@ -1218,7 +1224,7 @@ function Chat({ me }: { me: Me }) {
                              documents={allDocuments} jobs={jobs} jobsCase={caseId} cases={casesWithMembers} onOpen={openDocument} onDelete={removeListed}
                              onUpload={(files) => { setView("chat"); if (documentsReady) attachFiles(files); else setProblem(m.documentsCantBeAdded); }}
                              onUseAsSource={async (d) => {
-                               try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(() => {}); refreshDocuments(); }
+                               try { await confirmAsSource(d.id, d.case_id); listAllDocuments().then(setAllDocuments).catch(refreshFailed); refreshDocuments(); }
                                catch (e) { setProblem(m.useAsSourceFailed({ why: (e as Error).message })); }
                              }} />
         </div>}

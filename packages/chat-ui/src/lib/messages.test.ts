@@ -2,7 +2,8 @@
  * Messages are codes (suveryn-tracker#139; docs/design/messages.md): every code of the server's registry has words
  * in every language, and a code this screen doesn't know still gets a sentence in the reader's language.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { TABLES_FOR_TESTS } from "../i18n";
 import { generalMessage, messageText, problemOf } from "./messages";
@@ -63,5 +64,25 @@ describe("the server's codes, worded (suveryn-tracker#139)", () => {
     expect([401, 403, 404, 409, 413, 415, 422, 429, 500, 503].map((s) => generalMessage(s).code)).toEqual(["auth.signed_out", "request.forbidden",
       "request.not_found", "request.conflict", "request.too_large", "request.unsupported", "request.invalid", "request.too_many", "system.internal",
       "system.unavailable"]);
+  });
+});
+
+// suveryn-tracker#272: a refresh the screen makes by itself never fails in silence. `.catch(() => {})`,
+// `.catch(() => undefined)` and a catch that trusts the connection check to explain a refusal are refused; a refresh
+// ends in App's `refreshFailed`, or in its dialog's own error line.
+const SILENT = /\.catch\(\s*\(\)\s*=>\s*(\{\s*\}|undefined)\s*\)|catch\s*\{\s*\/\*[^*]*health check explains/;
+const SRC = new URL("..", import.meta.url).pathname;
+const sources = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
+  const path = join(dir, name);
+  if (name === "node_modules" || name === "generated") return [];
+  return statSync(path).isDirectory() ? sources(path) : /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : [];
+});
+
+describe("a failure", () => {
+  it("is never swallowed in silence", () => {
+    const silent = sources(SRC).flatMap((f) => readFileSync(f, "utf8").split("\n")
+      .map((line, i) => [`${relative(SRC, f)}:${i + 1}`, line] as const))
+      .filter(([, line]) => SILENT.test(line)).map(([where]) => where);
+    expect(silent, "say it: App's refreshFailed, or the dialog's own error line").toEqual([]);
   });
 });

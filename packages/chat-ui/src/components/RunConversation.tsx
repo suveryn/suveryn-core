@@ -376,7 +376,9 @@ function Review({ run, kase, words, lists, steps, canAnswer, me, panel, onPanel,
     catch (e) {
       setError((e as Error).message);
       // refused because a colleague changed a fact meanwhile: show what stands now, the person confirms again
-      if (e instanceof HttpError && e.status === 409) getRun(kase.id, run.id).then(onChanged).catch(() => undefined);
+      if (e instanceof HttpError && e.status === 409) {
+        getRun(kase.id, run.id).then(onChanged).catch((again: Error) => setError(m.refreshFailed({ why: again.message })));
+      }
     } finally { setBusy(false); }
   };
   const blocked = check.length > 0;

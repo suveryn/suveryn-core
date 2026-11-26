@@ -84,6 +84,12 @@ the screen still gets a sentence in the reader's language. The tables are typed 
 `messages.test.ts` fails on a code, area or kind without words in a language. An answer that isn't the gateway's (a
 proxy's 502) gets its status's general code, from the registry's `general`.
 
+A refresh the screen makes by itself (a list read again, the running playbooks every 15 s) never fails in silence
+(suveryn-tracker#272). When the gateway can't be reached, the connection check speaks. When it refused or failed,
+the line above the conversation says so once ("The screen couldn't be brought up to date. …" with the gateway's
+words and reference), and what the screen shows stays. A dialog says it in its own error line. `messages.test.ts`
+fails on an empty catch.
+
 ## The appliance's web setup
 
 The setup's API is not the gateway: it is a small service in suveryn-appliance (`setup/suveryn-setup`) that runs
