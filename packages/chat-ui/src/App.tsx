@@ -212,8 +212,8 @@ function Chat({ me, onMe }: { me: Me; onMe: (me: Me) => void }) {
   };
   /** Read `name` again and use what comes back; a failure is said, and the line goes when it works again. */
   const refresh = <T,>(name: string, read: Promise<T>, use: (value: T) => void): Promise<void> =>
-    read.then((value) => { use(value); refreshed(name, null); },
-              (e: unknown) => refreshed(name, e instanceof Error ? e : new Error(String(e))));
+    read.then(use).then(() => refreshed(name, null),
+                        (e: unknown) => refreshed(name, e instanceof Error ? e : new Error(String(e))));
   // Who the person is changed on the appliance (the office's name, saved in Administration › Settings): read again.
   useEffect(() => {
     const again = () => { refresh("me", getMe(), (user) => { if (user) onMe(user); }); };

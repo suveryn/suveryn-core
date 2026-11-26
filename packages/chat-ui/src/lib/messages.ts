@@ -89,16 +89,20 @@ export type RefreshLine = { shown: string | null; own: string | null; failing: s
  * there. A refresh that failed: the gateway's words, said once (a line already standing stays); one that can't reach
  * the gateway leaves the line to the connection check. A refresh that works again takes the line away once no
  * refresh is failing any more, and only while the line is still the refreshes' own: a failure that goes on keeps
- * the line up, steadily.
+ * the line up, steadily. Once the line is cleared or taken by another message, what failed is forgotten, so a read
+ * made only once can't hold a later line up.
  */
 export function afterRefresh(line: RefreshLine, name: string, failure: Error | null,
                              words: { refreshFailed: (v: { why: string }) => string }): RefreshLine {
   if (failure instanceof Unreachable) return line;
+  // a line the refreshes no longer hold (the person acted, another message took it): what failed is forgotten with it
+  if (line.shown === null || line.shown !== line.own) line = { ...line, own: null, failing: [] };
   if (failure === null) {
     const failing = line.failing.filter((n) => n !== name);
     return failing.length === 0 && line.shown !== null && line.shown === line.own
       ? { shown: null, own: null, failing } : { ...line, failing };
   }
+  if (line.shown !== null && line.own === null) return line;  // another message stands: it isn't replaced
   const failing = line.failing.includes(name) ? line.failing : [...line.failing, name];
   if (line.shown !== null) return { ...line, failing };
   const said = words.refreshFailed({ why: failure.message });

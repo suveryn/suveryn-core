@@ -107,7 +107,7 @@ describe("the line after a refresh", () => {
     expect(afterRefresh(up, "documents", new Error("Something went wrong (7F3K-92QD)."), words))
       .toEqual({ ...up, failing: ["caseRuns", "documents"] });
     const other = { shown: "The case couldn't be pinned.", own: null, failing: [] };
-    expect(afterRefresh(other, "runs", refused, words)).toEqual({ ...other, failing: ["runs"] });
+    expect(afterRefresh(other, "runs", refused, words)).toEqual(other);
   });
   it("stays while the refresh that failed still fails, though others work (never flickers)", () => {
     expect(afterRefresh(up, "runs", null, words)).toEqual(up);
@@ -117,6 +117,12 @@ describe("the line after a refresh", () => {
     const both = { ...up, failing: ["caseRuns", "documents"] };
     expect(afterRefresh(afterRefresh(both, "caseRuns", null, words), "documents", null, words)).toEqual(empty);
     const other = { shown: "The case couldn't be pinned.", own: said, failing: ["caseRuns"] };
-    expect(afterRefresh(other, "caseRuns", null, words)).toEqual({ ...other, failing: [] });
+    expect(afterRefresh(other, "caseRuns", null, words)).toEqual({ ...other, own: null, failing: [] });
+  });
+  it("forgets what failed once the line was cleared, so a read made only once can't hold a later line up", () => {
+    const cleared = { shown: null, own: said, failing: ["me"] };  // the person asked a question meanwhile
+    const later = afterRefresh(cleared, "documents", refused, words);
+    expect(later).toEqual({ shown: said, own: said, failing: ["documents"] });
+    expect(afterRefresh(later, "documents", null, words)).toEqual(empty);
   });
 });
