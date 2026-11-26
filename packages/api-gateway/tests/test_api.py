@@ -4,11 +4,13 @@ import json
 
 import httpx
 import pytest
-from conftest import ask
 from fastapi.testclient import TestClient
+from model_server import garbled as model_garbled
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
 from suveryn_harness import LlamaServerClient, LLMSettings
+
+from conftest import ask
 
 MODEL = "Qwen3.8-27B-UD-Q4_K_M.gguf"
 
@@ -24,21 +26,13 @@ def fake_backend(health_status: int = 200, chat_status: int = 200, garbled: bool
         if request.url.path == "/v1/chat/completions":
             if chat_status != 200:
                 return httpx.Response(chat_status, text="boom")
-            body = json.loads(request.content)
             if garbled is True:  # answered, and not what an answer looks like
-                return httpx.Response(200, text="data: {not json\n\n" if body["stream"] else "{not json",
-                                      headers={"content-type": "text/event-stream" if body["stream"] else "application/json"})
-            if body["stream"]:
-                chunks = [{"choices": [{"delta": {"content": t}, "finish_reason": None}]} for t in ("Een ", "akte.")]
-                chunks.append({"choices": [{"delta": {}, "finish_reason": "stop"}]})
-                chunks.append({"choices": [], "usage": {"prompt_tokens": 12, "completion_tokens": 3}})
-                sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
-                return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
-            return httpx.Response(200, json={
-                "id": "chatcmpl-1",
-                "choices": [{"message": {"role": "assistant", "content": "Een akte."}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 12, "completion_tokens": 3},
-            })
+                return model_garbled()
+            chunks = [{"choices": [{"delta": {"content": t}, "finish_reason": None}]} for t in ("Een ", "akte.")]
+            chunks.append({"choices": [{"delta": {}, "finish_reason": "stop"}]})
+            chunks.append({"choices": [], "usage": {"prompt_tokens": 12, "completion_tokens": 3}})
+            sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n\n"
+            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
         return httpx.Response(404)
     return httpx.MockTransport(handler)
 

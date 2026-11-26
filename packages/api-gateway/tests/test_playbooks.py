@@ -5,9 +5,9 @@ couldn't find, waits at the checkpoint for a person, stores the summary as a doc
 harness's and tested there (packages/harness/tests/test_facts.py); the order of steps without a
 database is test_playbook_runtime.py."""
 
+import json
 import os
 import sys
-import json
 import time
 import uuid
 from pathlib import Path
@@ -30,6 +30,8 @@ from test_documents import DOC, FakeDocuments, llm_transport
 
 # The model's answer for deed intake (the facts' JSON) and its passages: the harness's own test fixtures (reading it is the harness's).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "harness" / "tests"))
+from model_server import garbled as model_garbled
+from model_server import streamed
 from test_facts import ANSWER, response
 from test_facts import DOC as TABLE_DOC
 
@@ -699,7 +701,7 @@ def talking(runs):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/chat/completions") and "answered in their own words" in _json.loads(request.content)["messages"][-1]["content"]:
             reply = replies.pop(0)  # the words the model answers, or a whole response (one that can't be read)
-            return reply if isinstance(reply, httpx.Response) else httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": reply}, "finish_reason": "stop"}]})
+            return reply if isinstance(reply, httpx.Response) else streamed(reply)
         return reading(request)
 
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))
@@ -721,7 +723,7 @@ def test_an_answer_in_words_whose_model_answer_cant_be_read_is_an_unplanned_fail
     for step in ("title_deed", "certificates"):
         c.post(url + "/answer", json={"step_id": step, "none": True}, headers=alice)
     assert wait_for(c, url, alice, "waiting")["step"] == "missing"
-    garbled = httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
+    garbled = model_garbled()
     replies.append(garbled)  # an answer in words, and the model sends back what isn't an answer
     r = c.post(url + "/say", json={"text": "Kadaster: Gent 5e afd., sectie B, nr. 123."}, headers=alice)
     assert (r.status_code, r.json()["code"]) == (500, "system.internal") and r.json()["params"]["ref"]
@@ -734,7 +736,7 @@ def test_a_reading_whose_model_answer_cant_be_read_fails_the_run_with_a_referenc
     auth = Authenticator(SETTINGS, OIDCProvider(SETTINGS, transport=httpx.MockTransport(kc.handler)))
     usual = llm_transport([]).handle_request
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(
-        lambda request: httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
+        lambda request: model_garbled()
         if request.url.path.endswith("/chat/completions") else usual(request)))
     app = create_app(llm, documents=docs, load_documents=False, auth=auth, conversations=history, cases=cases, runs=runs,
                      case_settings=CaseSettings(default_access="members", keep="6m"), directory=FakeDirectory())
@@ -1121,7 +1123,7 @@ def test_a_choice_in_words_that_are_none_of_its_options_is_asked_again_not_dropp
         content = _json.loads(request.content)["messages"][-1]["content"] if request.url.path.endswith("/chat/completions") else ""
         if "answered in their own words" in content:
             prompts.append(content)
-            return httpx.Response(200, json={"id": "m", "choices": [{"message": {"content": replies.pop(0)}, "finish_reason": "stop"}]})
+            return streamed(replies.pop(0))
         return reading(request)
 
     llm = LlamaServerClient(LLMSettings(base_url="http://llm"), transport=httpx.MockTransport(handler))

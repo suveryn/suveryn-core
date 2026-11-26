@@ -1,7 +1,7 @@
 """A stand-in for llama-server, for the end-to-end stack (e2e/README.md).
 
 It speaks what ``suveryn_harness.llm.LlamaServerClient`` expects of a llama-server in router mode: ``/health``,
-``/models`` (two presets, one loaded), ``/v1/models``, and ``POST /v1/chat/completions`` as one answer or as
+``/models`` (two presets, one loaded), ``/v1/models``, and ``POST /v1/chat/completions`` as
 server-sent events with ``timings`` and a final ``usage``. No model runs: the answer is made from the prompt
 itself, so the stack is deterministic and needs no GPU, and still exercises everything around the model: the
 grounded prompt, citations checked against their passages, the facts a playbook reads, thinking.
@@ -198,12 +198,8 @@ async def chat(request: Request):
     usage = {"prompt_tokens": prompt_n, "completion_tokens": predicted_n, "total_tokens": prompt_n + predicted_n}
     cid = f"chatcmpl-{uuid.uuid4().hex[:12]}"
 
-    if not stream:
-        message = {"role": "assistant", "content": answer}
-        if reasoning:
-            message["reasoning_content"] = reasoning
-        return {"id": cid, "object": "chat.completion", "created": int(time.time()), "model": model,
-                "choices": [{"index": 0, "message": message, "finish_reason": finish}], "usage": usage}
+    if not stream:  # sūveryn streams every call (suveryn-tracker#270)
+        return JSONResponse({"error": {"code": 400, "message": "e2e: the stub only streams", "type": "invalid_request_error"}}, status_code=400)
 
     async def events() -> AsyncIterator[bytes]:
         def chunk(delta: dict, finish_reason: str | None = None, n: int = 0) -> bytes:

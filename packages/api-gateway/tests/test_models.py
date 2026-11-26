@@ -6,11 +6,13 @@ Against a fake llama-server in router mode (several models, one loaded) and in s
 import json
 
 import httpx
-from conftest import ask
 from fastapi.testclient import TestClient
+from model_server import streamed
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import Authenticator
 from suveryn_harness import LlamaServerClient, LLMSettings
+
+from conftest import ask
 
 QWEN, MISTRAL = "qwen3.8-27b", "mistral-small-3.2-24b"
 CHAT = {"messages": [{"role": "user", "content": "Vraag"}]}
@@ -29,11 +31,7 @@ def backend(router: bool, sent: list):
             return httpx.Response(200, json={"status": "ok"})
         body = json.loads(request.content)
         sent.append(body)
-        if body.get("stream"):
-            sse = ('data: {"choices": [{"delta": {"content": "Antwoord."}, "finish_reason": null}]}\n\n'
-                   'data: {"choices": [{"delta": {}, "finish_reason": "stop"}]}\n\ndata: [DONE]\n\n')
-            return httpx.Response(200, text=sse, headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": "Antwoord."}, "finish_reason": "stop"}]})
+        return streamed("Antwoord.")
     return httpx.MockTransport(handler)
 
 

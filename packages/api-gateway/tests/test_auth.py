@@ -19,8 +19,8 @@ import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
-from conftest import ask
 from fastapi.testclient import TestClient
+from model_server import streamed
 from suveryn_api_gateway.app import create_app
 from suveryn_api_gateway.auth import (
     LOGIN_COOKIE,
@@ -33,6 +33,8 @@ from suveryn_api_gateway.auth import (
 from suveryn_api_gateway.main import check_auth_settings, check_one_process
 from suveryn_api_gateway.ratelimit import RateLimits
 from suveryn_harness import LlamaServerClient, LLMSettings
+
+from conftest import ask
 
 ISSUER = "http://keycloak.test/realms/suveryn"
 PUBLIC = "http://testserver"
@@ -119,7 +121,7 @@ def llm_transport(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B-UD-Q4_K_M.gguf"}]})
     if request.url.path == "/health":
         return httpx.Response(200, json={"status": "ok"})
-    return httpx.Response(200, json={"id": "x", "choices": [{"message": {"content": "Een akte."}, "finish_reason": "stop"}]})
+    return streamed("Een akte.")
 
 
 @pytest.fixture

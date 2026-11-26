@@ -20,24 +20,26 @@ from suveryn_harness import (
 from suveryn_harness.thinking import THINKING_TOKENS, ThinkSplitter
 
 
+def streamed(text: str) -> httpx.Response:
+    """An answer as llama-server streams it: every call the harness makes streams (suveryn-tracker#270)."""
+    body = f"data: {json.dumps({'choices': [{'delta': {'content': text}, 'finish_reason': None}]})}\n\n"
+    body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
+    return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
+
+
 def ask(**over) -> ChatRequest:
     return ChatRequest(messages=[ChatMessage(role="user", content="What is the price?")], **over)
 
 
 def server(events: list[dict], state: dict):
-    """A llama-server that streams ``events`` (deltas), or answers them joined when not streaming."""
+    """A llama-server that streams ``events`` (deltas)."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/models":
             return httpx.Response(404)
         if request.url.path == "/v1/models":
             return httpx.Response(200, json={"data": [{"id": state.get("model", "Qwen3.8-27B.gguf")}]})
-        state["payload"] = payload = json.loads(request.content)
-        if not payload["stream"]:
-            message = {"content": "".join(e.get("content", "") for e in events)}
-            if any("reasoning_content" in e for e in events):
-                message["reasoning_content"] = "".join(e.get("reasoning_content", "") for e in events)
-            return httpx.Response(200, json={"choices": [{"message": message, "finish_reason": "stop"}], "usage": {}})
+        state["payload"] = json.loads(request.content)
         body = "".join(f"data: {json.dumps({'choices': [{'delta': e, 'finish_reason': None}]})}\n\n" for e in events)
         body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
         return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
@@ -174,10 +176,6 @@ def _thinker(reasoning_pieces: int, finish: str = "length"):
         payload = json.loads(request.content)
         thinking = payload.get("chat_template_kwargs", {}).get("enable_thinking")
         events = ([{"reasoning_content": "Secret "}] * reasoning_pieces) if thinking else [{"content": "EUR 1."}]
-        if not payload["stream"]:  # the whole answer at once (VM regression 9c97d76, finding 1)
-            message = {"content": "".join(e.get("content", "") for e in events),
-                       "reasoning_content": "".join(e.get("reasoning_content", "") for e in events)}
-            return httpx.Response(200, json={"choices": [{"message": message, "finish_reason": finish if thinking else "stop"}], "usage": {}})
         body = "".join(f"data: {json.dumps({'choices': [{'delta': e, 'finish_reason': None}]})}\n\n" for e in events)
         body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': finish if thinking else 'stop'}]})}\n\ndata: [DONE]\n\n"
         return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
@@ -247,8 +245,8 @@ def test_when_asking_again_gets_an_answer_that_cant_be_read_the_first_answer_sta
             return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
         calls.append(1)
         if len(calls) > 1:
-            return httpx.Response(200, text="{not json", headers={"content-type": "application/json"})
-        return httpx.Response(200, json={"choices": [{"message": {"content": "Samen 1.000 aandelen [1]."}, "finish_reason": "stop"}], "usage": {}})
+            return httpx.Response(200, text="data: {not json\n\n", headers={"content-type": "text/event-stream"})
+        return streamed("Samen 1.000 aandelen [1].")
 
     async def retriever(question, ids, k, owner, case_id):
         return [(Citation(text="A neemt 400 aandelen, B neemt 600 aandelen.", source=SourceRef(document_id="d1", page=1)), "akte.pdf")], True
@@ -273,11 +271,7 @@ def test_an_answer_with_a_figure_it_worked_out_is_asked_again(stream):
         payload = json.loads(request.content)
         seen.append(payload["messages"][-1]["content"])
         text = replies[min(len(seen) - 1, 1)]
-        if payload["stream"]:
-            body = f"data: {json.dumps({'choices': [{'delta': {'content': text}, 'finish_reason': None}]})}\n\n"
-            body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
-            return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+        return streamed(text)
 
     async def retriever(question, ids, k, owner, case_id):
         return [(Citation(text="A neemt 400 aandelen, B neemt 600 aandelen.", source=SourceRef(document_id="d1", page=1)), "akte.pdf")], True
@@ -311,11 +305,7 @@ def _two_parties(replies: list[str], seen: list[str], schema: dict | None = None
         if fail_after and len(seen) > fail_after:
             return httpx.Response(500, text="busy")
         text = replies[min(len(seen) - 1, len(replies) - 1)]
-        if payload["stream"]:
-            body = f"data: {json.dumps({'choices': [{'delta': {'content': text}, 'finish_reason': None}]})}\n\n"
-            body += f"data: {json.dumps({'choices': [{'delta': {}, 'finish_reason': 'stop'}]})}\n\ndata: [DONE]\n\n"
-            return httpx.Response(200, content=body.encode(), headers={"content-type": "text/event-stream"})
-        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+        return streamed(text)
 
     async def retriever(question, ids, k, owner, case_id):
         return [(Citation(text=SELLER, source=SourceRef(document_id="d1", page=1)), "deed.pdf"),
@@ -403,8 +393,7 @@ def test_a_figure_retry_that_isnt_clean_leaves_the_first(second, caplog):
         if request.url.path in ("/models", "/v1/models"):
             return httpx.Response(200, json={"data": [{"id": "Qwen3.8-27B.gguf"}]})
         seen.append(1)
-        text = "Together 1.000 shares [1]." if len(seen) == 1 else second
-        return httpx.Response(200, json={"choices": [{"message": {"content": text}, "finish_reason": "stop"}], "usage": {}})
+        return streamed("Together 1.000 shares [1]." if len(seen) == 1 else second)
 
     async def retriever(question, ids, k, owner, case_id):
         return [(Citation(text="A takes 400 shares, B takes 600 shares.", source=SourceRef(document_id="d1", page=1)), "deed.pdf")], True
