@@ -153,6 +153,7 @@ export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, ca
   const citation = turn.citations[n - 1];
   const at = cited.indexOf(n);
   const filename = sourceName(citation, filenames, m);
+  const opensAtPage = /\.pdf$/i.test(filename);  // a browser opens a PDF at a page; a deck (a slide numbered as a page) is downloaded
   // the text around the passage on its page, dimmed (board G11); the passage alone when there is none
   const around = contextAround(citation);
   // Scroll the passage (not the page) to the first marked sentence: a long passage shows only its start.
@@ -207,9 +208,9 @@ export function SourcePanel({ turn, open, filenames, caseRef, present = NONE, ca
         <footer className="source-panel-actions">
           {citation.source && present.has(citation.source.document_id) && (
             <LinkButton variant="text" className="copy-button source-open" newTab
-                        href={originalUrl(citation.source.document_id, caseId, citation.source.page)}>
+                        href={originalUrl(citation.source.document_id, caseId, opensAtPage ? citation.source.page : null)}>
               <ExternalLink size={13} aria-hidden />
-              <span>{citation.source.page ? m.openAtPage({ page: citation.source.page }) : m.openDocument}</span>
+              <span>{opensAtPage && citation.source.page ? m.openAtPage({ page: citation.source.page }) : m.openDocument}</span>
             </LinkButton>
           )}
           <CopyButton text={formatSource(n, citation, filename)} label={m.copyPassage} what={m.passageWhat({ n })} />

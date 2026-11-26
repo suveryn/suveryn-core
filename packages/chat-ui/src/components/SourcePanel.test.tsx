@@ -13,8 +13,8 @@ const turn = (page: number | null): AssistantTurn => ({
   citations: [{ text: "The price is EUR 300,000.", source: { document_id: "d1", page, location: page ? `p. ${page}` : "" } }],
 });
 const none = () => {};
-const panel = (page: number | null, present: Set<string>) => renderToStaticMarkup(
-  <SourcePanel turn={turn(page)} open={{ n: 1, occ: null }} filenames={new Map([["d1", "deed.pdf"]])} caseRef="TEST-1"
+const panel = (page: number | null, present: Set<string>, file = "deed.pdf") => renderToStaticMarkup(
+  <SourcePanel turn={turn(page)} open={{ n: 1, occ: null }} filenames={new Map([["d1", file]])} caseRef="TEST-1"
                present={present} caseId="c1" onSource={none} onClose={none} />);
 
 describe("the source panel's document link", () => {
@@ -27,6 +27,11 @@ describe("the source panel's document link", () => {
   });
   it("says Open document for a file without pages", () => {
     expect(panel(null, new Set(["d1"]))).toContain(">Open document<");
+  });
+  it("says Open document for a deck, whose slide is numbered as a page: it is downloaded, not opened at a page", () => {
+    const html = panel(2, new Set(["d1"]), "Toelichting.pptx");
+    expect(html).toContain('href="/v1/documents/d1/original?case=c1"');
+    expect(html).toContain(">Open document<");
   });
   it("offers the passage's download when the document is gone", () => {
     const html = panel(3, new Set());
