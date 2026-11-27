@@ -22,11 +22,18 @@ const said = (m: typeof en, locale: string) => {
 
 describe("a chart's column, read out", () => {
   it.each([
-    [en, "en-GB", `Tue 14:00: ${en.inputTokens} 1,200, ${en.outputTokens} 300, ${en.chartTotal} 1,500`],
-    // the language's own way to list values (CLDR's unit list): Dutch and French put "en", "et" before the last
+    // a label and its value (labelValue), the values listed the way the language lists them (decision of 13 November)
+    [en, "en-GB", `Tue 14:00: ${en.inputTokens} 1,200, ${en.outputTokens} 300 and ${en.chartTotal} 1,500`],
     [nl, "nl-BE", `Tue 14:00: ${nl.inputTokens} 1.200, ${nl.outputTokens} 300 en ${nl.chartTotal} 1.500`],
     [fr, "fr-BE", `Tue 14:00 : ${fr.inputTokens} 1 200, ${fr.outputTokens} 300 et ${fr.chartTotal} 1 500`],
   ])("is worded in the reader's language", (m, locale, expected) => {
     expect(said(m as typeof en, locale)).toEqual([expected]);
+  });
+
+  it("has no total when there is one series", () => {
+    const html = renderToStaticMarkup(
+      <ColumnChart label="Tokens" series={[{ id: "input", label: en.inputTokens }]} data={[{ key: "a", label: "Tue 14:00", values: [1200] }]}
+                   format={(n) => whole(n, "en-GB")} tick={String} text={chartText(en, en.chartTime, "en-GB")} />);
+    expect(html).toContain(`Tue 14:00: ${en.inputTokens} 1,200<`);
   });
 });

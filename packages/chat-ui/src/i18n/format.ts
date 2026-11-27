@@ -69,6 +69,3 @@ export function bytes(n: number, l: string = current()): string {
 /** "2", "2 and 3", "2, 3 and 5" (nl "2, 3 en 5", fr "2, 3 et 5"). */
 export const list = (items: readonly (string | number)[], l: string = current()): string =>
   new Intl.ListFormat(l, { type: "conjunction" }).format(items.map(String));
-/** A list without "and", as a set of values reads ("Input tokens 1,200, Output tokens 300"). */
-export const unitList = (items: readonly (string | number)[], l: string = current()): string =>
-  new Intl.ListFormat(l, { type: "unit" }).format(items.map(String));

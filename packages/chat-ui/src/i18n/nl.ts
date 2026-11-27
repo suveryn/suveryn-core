@@ -464,7 +464,6 @@ const nl: Messages = {
   chartShowChart: "Als grafiek tonen",
   chartTime: "Tijdstip",
   chartTotal: "Totaal",
-  chartReadOut: m("{column}: {values}"),
   chartValue: m("{series} {value}"),
   noUsage: "Geen verbruik in deze periode.",
   usageUnavailable: m("Het verbruik kan nu niet worden getoond. {why}"),

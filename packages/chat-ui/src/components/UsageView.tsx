@@ -11,7 +11,7 @@ import { ArrowLeft, ChartColumn, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { useT } from "../i18n";
-import { amount, compact, date, time, unitList, whole } from "../i18n/format";
+import { amount, compact, date, list, time, whole } from "../i18n/format";
 import type { AdminPage } from "./Admin";
 import { bucketLabel, PRESETS, rangeFor, type Preset } from "../lib/usage";
 import {
@@ -70,7 +70,7 @@ function Totals({ totals, extra }: { totals: UsageTotals; extra?: { label: strin
 export function chartText(m: ReturnType<typeof useT>, category: string, locale?: string): ChartText {
   return {
     showTable: m.chartShowTable, showChart: m.chartShowChart, category, total: m.chartTotal,
-    readOut: (column, values) => m.chartReadOut({ column, values: unitList(values.map((v) => m.chartValue(v)), locale) }),
+    readOut: (column, values) => m.labelValue({ label: column, value: list(values.map((v) => m.chartValue(v)), locale) }),
   };
 }
 

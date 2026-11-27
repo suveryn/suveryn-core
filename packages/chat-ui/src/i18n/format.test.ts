@@ -53,11 +53,6 @@ describe("dates, numbers and lists", () => {
     expect(said.map((s) => s.replace(/[\u00a0\u202f]/g, " "))).toEqual([number, whole, compact, amount, kb, gb, list]);
   });
 
-  it.each([["en-GB", "A 1, B 2, C 3"], ["nl-BE", "A 1, B 2 en C 3"], ["fr-BE", "A 1, B 2 et C 3"]])(
-    "list values as %s does", (l, said) => {
-      expect(fmt.unitList(["A 1", "B 2", "C 3"], l)).toBe(said);
-    });
-
   it("leaves a date's year out only when it is this year's", () => {
     expect([fmt.sameYear(new Date(2026, 0, 1), new Date(2026, 11, 31)), fmt.sameYear(new Date(2025, 11, 31), new Date(2026, 0, 1))])
       .toEqual([true, false]);
