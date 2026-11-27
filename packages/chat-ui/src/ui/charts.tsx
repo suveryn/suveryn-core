@@ -26,6 +26,9 @@ export type ChartText = {
   /** The heading of the table's first column: what a row is ("Time", "User"). */
   category: string;
   total: string;
+  /** What a screen reader says for a column: its label and each series' value, in the reader's language (the
+   *  screen words it; this kit never joins words itself). */
+  readOut: (column: string, values: { series: string; value: string }[]) => string;
 };
 
 type Common = {
@@ -113,11 +116,11 @@ export function ColumnChart({ label, series, data, format, tick, text, slots, ev
   );
 }
 
-/** "Tue 14:00: Input tokens 1,200, Output tokens 300, Total 1,500". */
+/** "Tue 14:00: Input tokens 1,200, Output tokens 300, Total 1,500", worded by the screen (`text.readOut`). */
 function readOut(d: Datum, series: Series[], format: (n: number) => string, text: ChartText) {
-  const parts = series.map((s, i) => `${s.label} ${format(d.values[i] ?? 0)}`);
-  if (series.length > 1) parts.push(`${text.total} ${format(sum(d.values))}`);
-  return `${d.label}: ${parts.join(", ")}`;
+  const values = series.map((s, i) => ({ series: s.label, value: format(d.values[i] ?? 0) }));
+  if (series.length > 1) values.push({ series: text.total, value: format(sum(d.values)) });
+  return text.readOut(d.label, values);
 }
 
 function ChartHead({ series, table, onToggle, text }: { series: Series[]; table: boolean; onToggle: () => void; text: ChartText }) {
