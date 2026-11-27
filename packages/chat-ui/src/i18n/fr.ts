@@ -464,6 +464,7 @@ const fr: Messages = {
   chartShowChart: "Afficher sous forme de graphique",
   chartTime: "Moment",
   chartTotal: "Total",
+  chartValue: m("{series} {value}"),
   noUsage: "Aucune consommation sur cette période.",
   usageUnavailable: m("La consommation ne peut pas être affichée pour le moment. {why}"),
   backToChat: "Retour à la conversation",

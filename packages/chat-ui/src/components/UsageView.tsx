@@ -11,7 +11,7 @@ import { ArrowLeft, ChartColumn, CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { getMyUsage, getOfficeUsage, type OfficeUsageReport, type UsageReport, type UsageTotals } from "../api";
 import { useT } from "../i18n";
-import { amount, compact, date, time, whole } from "../i18n/format";
+import { amount, compact, date, list, time, whole } from "../i18n/format";
 import type { AdminPage } from "./Admin";
 import { bucketLabel, PRESETS, rangeFor, type Preset } from "../lib/usage";
 import {
@@ -66,9 +66,12 @@ function Totals({ totals, extra }: { totals: UsageTotals; extra?: { label: strin
   );
 }
 
-function useChartText(category: string): ChartText {
-  const m = useT();
-  return { showTable: m.chartShowTable, showChart: m.chartShowChart, category, total: m.chartTotal };
+/** A chart's words in the reader's language: its buttons, and what a screen reader says for a column. */
+export function chartText(m: ReturnType<typeof useT>, category: string, locale?: string): ChartText {
+  return {
+    showTable: m.chartShowTable, showChart: m.chartShowChart, category, total: m.chartTotal,
+    readOut: (column, values) => m.labelValue({ label: column, value: list(values.map((v) => m.chartValue(v)), locale) }),
+  };
 }
 
 function useTokenSeries(): Series[] {
@@ -79,7 +82,7 @@ function useTokenSeries(): Series[] {
 /** Input and output tokens per step of the period. */
 function Chart({ report }: { report: UsageReport }) {
   const m = useT();
-  const text = useChartText(m.chartTime);
+  const text = chartText(m, m.chartTime);
   const series = useTokenSeries();
   const data: Datum[] = report.series.map((b) => ({
     key: b.start, label: bucketLabel(b.start, report.step), values: [b.prompt_tokens, b.completion_tokens],

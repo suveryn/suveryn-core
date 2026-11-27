@@ -28,7 +28,8 @@ export const valueNotes: Record<string, string> = {
 };
 
 export const notes: Notes<typeof en> = {
-  labelValue: "A label and its value, in a tooltip or a copied line: \"deed.pdf: Ready to use…\". Only the punctuation between them is yours (French puts a space before the colon).",
+  labelValue: "A label and its value, in a tooltip, a copied line, or what a screen reader says for a chart's column: \"deed.pdf: Ready to use…\". Only the punctuation between them is yours (French puts a space before the colon).",
+  chartValue: "What a screen reader says for one value of a chart's column: {series} is what is counted (\"Input tokens\"), {value} the number, already written in the reader's language (\"1,200\"). The values of a column are then listed the way the language lists them, after the column's label.",
   messages: "What the server refused or couldn't do, by its code. Each is a whole sentence, shown on its own or after a sentence that says what failed (\"The case couldn't be closed. You don't have permission for this.\"). Say what happened and, where there is one, what to do next.",
   messagesBare: "The same code's sentence when the server didn't send the number or reference the full sentence needs.",
   messageAreas: "What is said for a code this screen doesn't know yet, by the part of sūveryn it is about. Whole sentences.",

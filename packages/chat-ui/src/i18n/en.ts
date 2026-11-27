@@ -490,6 +490,7 @@ const en = {
   chartShowChart: "Show as a chart",
   chartTime: "Time",
   chartTotal: "Total",
+  chartValue: m("{series} {value}", "series", "value"),
   noUsage: "No usage in this period.",
   usageUnavailable: m("Usage can''t be shown right now. {why}", "why"),
   backToChat: "Back to the conversation",
