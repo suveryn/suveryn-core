@@ -116,7 +116,7 @@ export function ColumnChart({ label, series, data, format, tick, text, slots, ev
   );
 }
 
-/** "Tue 14:00: Input tokens 1,200, Output tokens 300, Total 1,500", worded by the screen (`text.readOut`). */
+/** "Tue 14:00: Input tokens 1,200, Output tokens 300 and Total 1,500", worded by the screen (`text.readOut`). */
 function readOut(d: Datum, series: Series[], format: (n: number) => string, text: ChartText) {
   const values = series.map((s, i) => ({ series: s.label, value: format(d.values[i] ?? 0) }));
   if (series.length > 1) values.push({ series: text.total, value: format(sum(d.values)) });
